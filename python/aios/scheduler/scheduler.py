@@ -14,6 +14,7 @@ from .table import TableManager
 
 if TYPE_CHECKING:
     from aios.engine.graph import GraphRunner
+    from aios.engine.sample import BatchSamplingArgs, Sampler
 
 
 Indice2D: TypeAlias = Tuple[torch.Tensor, torch.Tensor]
@@ -21,6 +22,7 @@ Indice2D: TypeAlias = Tuple[torch.Tensor, torch.Tensor]
 
 class ForwardInput(NamedTuple):
     batch: Batch
+    sample_args: BatchSamplingArgs
     input_tuple: Indice2D
     write_tuple: Indice2D
 
@@ -49,6 +51,7 @@ class Scheduler:
         eos_token_id: int,
         device: torch.device,
         attn_backend: BaseAttnBackend,
+        sampler: Sampler,
         prefill_token_budget: int | None = None,
         graph_runner: GraphRunner | None = None,
     ) -> None:
@@ -57,6 +60,7 @@ class Scheduler:
         self.eos_token_id = eos_token_id
         self.device = device
         self.attn_backend = attn_backend
+        self.sampler = sampler
         self.prefill_budget = prefill_token_budget or torch.iinfo(torch.int64).max
         self.graph_runner = graph_runner
 
@@ -103,14 +107,19 @@ class Scheduler:
         write_mapping = _make_write_tuple(batch, self.device)
         batch.out_loc = self.table_manager.page_table[input_mapping]
         self.attn_backend.prepare_metadata(batch)
-        return ForwardInput(batch, input_mapping, write_mapping)
+        return ForwardInput(
+            batch=batch,
+            sample_args=self.sampler.prepare(batch),
+            input_tuple=input_mapping,
+            write_tuple=write_mapping,
+        )
 
     # ---------------------------------------------------------- post-processing
 
     def process_batch_output(
         self, forward_input: ForwardInput, next_tokens: torch.Tensor
     ) -> None:
-        batch, input_mapping, write_mapping = forward_input
+        batch, _, input_mapping, write_mapping = forward_input
         del input_mapping
         self.table_manager.token_pool[write_mapping] = next_tokens
         self.decode_manager.filter_reqs(batch.reqs)

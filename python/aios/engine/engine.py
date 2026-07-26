@@ -9,7 +9,7 @@ from ..core import Context, Req, SamplingParams, clear_global_ctx, set_global_ct
 from ..kvcache import MHAKVCache
 from ..models import ModelConfig, create_model, load_weights
 from .graph import GraphRunner, get_free_memory
-from .sample import Sampler
+from .sample import BatchSamplingArgs, Sampler
 
 if TYPE_CHECKING:
     from ..core import Batch
@@ -68,6 +68,8 @@ class Engine:
         )
         set_global_ctx(self.ctx)
         self.ctx.attn_backend = self.attn_backend = FlashInferBackend(model_config)
+
+        self.sampler = Sampler(device, model_config.vocab_size)
 
         self.dummy_req = Req(
             input_ids=torch.tensor([0], dtype=torch.int32),
@@ -128,7 +130,9 @@ class Engine:
         )
         return num_pages
 
-    def forward_batch(self, batch: Batch) -> torch.Tensor:
+    def forward_batch(
+        self, batch: Batch, args: BatchSamplingArgs
+    ) -> torch.Tensor:
         assert torch.cuda.current_stream() == self.stream
         with self.ctx.forward_batch(batch):
             if (
@@ -142,12 +146,7 @@ class Engine:
         for req in batch.reqs:
             req.complete_one()
 
-        logits = logits[: batch.size]
-        next_tokens = []
-        for i, req in enumerate(batch.reqs):
-            token = Sampler(req.sampling_params).sample(logits[i : i + 1])
-            next_tokens.append(token.view(-1)[0])
-        return torch.stack(next_tokens).to(torch.int32)
+        return self.sampler.sample(logits[: batch.size], args).to(torch.int32)
 
     def shutdown(self) -> None:
         if self.graph_runner is not None:

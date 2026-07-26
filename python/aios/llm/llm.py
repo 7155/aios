@@ -121,6 +121,7 @@ class LLM:
             eos_token_id=self.tokenizer.eos_token_id,
             device=self.device,
             attn_backend=self.attn_backend,
+            sampler=self.engine.sampler,
             prefill_token_budget=prefill_token_budget,
             graph_runner=self.graph_runner,
         )
@@ -135,7 +136,9 @@ class LLM:
                     break
                 batch = forward_input.batch
                 batch.input_ids = table_manager.token_pool[forward_input.input_tuple]
-                next_tokens = self.engine.forward_batch(batch)
+                next_tokens = self.engine.forward_batch(
+                    batch, forward_input.sample_args
+                )
                 scheduler.process_batch_output(forward_input, next_tokens)
                 if debug_scheduler:
                     print(f"[{iter_idx}] {scheduler.debug_state(batch)}")
