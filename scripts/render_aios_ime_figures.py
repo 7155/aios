@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 FONT = "'DejaVu Sans', Helvetica, Arial, sans-serif"
+CJK_FONT = "'Droid Sans Fallback', 'Noto Sans CJK SC', 'Microsoft YaHei', 'PingFang SC', sans-serif"
 MONO = "'Cascadia Mono', 'SFMono-Regular', Consolas, monospace"
 
 COLORS = {
@@ -182,8 +183,15 @@ class Svg:
         lines = value.splitlines() or [""]
         step = line_height or size * 1.35
         first_y = y - (len(lines) - 1) * step / 2
+        def line_family(line: str) -> str:
+            if family != FONT:
+                return family
+            has_cjk = any("\u3400" <= character <= "\u9fff" for character in line)
+            return CJK_FONT if has_cjk else FONT
+
         spans = "".join(
-            f'<tspan x="{x}" y="{first_y + index * step}">{html.escape(line)}</tspan>'
+            f'<tspan x="{x}" y="{first_y + index * step}" '
+            f'font-family="{line_family(line)}">{html.escape(line)}</tspan>'
             for index, line in enumerate(lines)
         )
         self.parts.append(
@@ -221,130 +229,199 @@ def module(
 
 
 def render_runtime(path: Path) -> None:
-    svg = Svg(1600, 760, "AIOS-IME single-prefix multi-candidate runtime")
+    svg = Svg(1400, 500, "AIOS-IME Chinese-prefix Top-3 runtime overview")
     title(
         svg,
         "AIOS-IME Chinese-Prefix Top-3 Inference",
         "Local single user · one keystroke · one Prefill · complete Top-3",
     )
 
-    y, height = 145, 145
+    y, height = 155, 155
     modules = [
-        (40, 170, "Chinese Prefix", "Raw text + BOS", COLORS["slate"], COLORS["border"]),
-        (240, 190, "Tokenizer", "Retokenize · token-LCP", COLORS["cyan_fill"], COLORS["cyan"]),
-        (460, 185, "Prefix Prefill", "Run once", COLORS["blue_fill"], COLORS["blue"]),
-        (675, 215, "Shared Prefix KV", "Physical pages shared", COLORS["violet_fill"], COLORS["violet"]),
+        (40, 170, "Chinese Prefix", "没关系，你先忙你的，", COLORS["slate"], COLORS["border"]),
+        (245, 180, "Tokenizer", "Retokenize · token-LCP", COLORS["cyan_fill"], COLORS["cyan"]),
+        (460, 180, "Prefix Prefill", "Run exactly once", COLORS["blue_fill"], COLORS["blue"]),
+        (675, 210, "CandidateGroup", "8 independent decode rows", COLORS["violet_fill"], COLORS["violet"]),
+        (920, 220, "Filter · Dedup · MMR", "Raw LM score · Top-3", COLORS["orange_fill"], COLORS["orange"]),
+        (1175, 180, "Candidate Bar", "明确答复 / 发消息 / …", COLORS["green_fill"], COLORS["green"]),
     ]
     for x, width, heading, detail, fill, stroke in modules:
         module(svg, x, y, width, height, heading, detail, fill=fill, stroke=stroke)
-    for x1, x2 in ((210, 240), (430, 460), (645, 675)):
+    for x1, x2 in ((210, 245), (425, 460), (640, 675), (885, 920), (1140, 1175)):
         svg.line(x1, y + height / 2, x2, y + height / 2, arrow=True)
 
-    group_x, group_y, group_w, group_h = 930, 120, 260, 300
-    svg.rect(
-        group_x,
-        group_y,
-        group_w,
-        group_h,
-        fill=COLORS["panel"],
-        stroke=COLORS["blue"],
-        shadow=True,
-    )
     svg.text(
-        group_x + group_w / 2,
-        group_y + 28,
-        "CandidateGroup\nBatched Decode",
-        size=15,
-        weight=700,
-        line_height=18,
+        700,
+        385,
+        "The main path generates Chinese suffixes directly; pinyin lexicon recall is not required.",
+        size=18,
+        weight=500,
+        fill=COLORS["muted"],
     )
-    for row in range(8):
-        row_y = group_y + 55 + row * 28
-        svg.rect(
-            group_x + 18,
-            row_y,
-            group_w - 36,
-            21,
-            fill=COLORS["blue_fill"] if row < 5 else COLORS["slate"],
-            stroke=COLORS["blue"] if row < 5 else COLORS["slate_dark"],
-            stroke_width=1.0,
-            rx=6,
-        )
-        svg.text(group_x + 36, row_y + 11, str(row + 1), size=11, weight=700, fill=COLORS["blue"])
-        for token in range(6):
-            token_x = group_x + 60 + token * 23
-            svg.rect(
-                token_x,
-                row_y + 5,
-                15,
-                11,
-                fill=COLORS["cyan"] if token < 3 + row % 3 else COLORS["grid"],
-                stroke="none",
-                stroke_width=0,
-                rx=3,
-            )
-    svg.path(
-        f"M 890 {y + height / 2} C 910 {y + height / 2}, 910 270, {group_x} 270",
-        arrow=True,
+    svg.save(path)
+
+
+def render_candidate_group(path: Path) -> None:
+    svg = Svg(1400, 700, "AIOS-IME candidate group and Top-3 selection")
+    title(
+        svg,
+        "CandidateGroup: Generate More, Display Top-3",
+        "Shared Prefix KV · ragged batched Decode · deadline-aware refill",
     )
-    rank_x, rank_y, rank_w, rank_h = 1215, 145, 200, 190
+
     module(
         svg,
-        rank_x,
-        rank_y,
-        rank_w,
-        rank_h,
+        45,
+        220,
+        260,
+        170,
+        "中文前缀",
+        "没关系，\n你先忙你的，\n\n只预填一次",
+        fill=COLORS["violet_fill"],
+        stroke=COLORS["violet"],
+    )
+
+    group_x, group_y, group_w, group_h = 345, 125, 410, 420
+    svg.rect(group_x, group_y, group_w, group_h, fill=COLORS["panel"], stroke=COLORS["blue"], shadow=True)
+    svg.text(group_x + group_w / 2, group_y + 40, "八路独立候选解码", size=23, weight=700)
+    for row in range(8):
+        row_y = group_y + 75 + row * 36
+        svg.rect(
+            group_x + 25,
+            row_y,
+            group_w - 50,
+            27,
+            fill=COLORS["blue_fill"] if row < 5 else COLORS["slate"],
+            stroke=COLORS["blue"] if row < 5 else COLORS["slate_dark"],
+            stroke_width=1.2,
+            rx=6,
+        )
+        svg.text(group_x + 47, row_y + 14, str(row + 1), size=14, weight=700, fill=COLORS["blue"])
+        for token in range(8):
+            token_x = group_x + 82 + token * 34
+            svg.rect(
+                token_x,
+                row_y + 6,
+                23,
+                15,
+                fill=COLORS["cyan"] if token < 3 + row % 4 else COLORS["grid"],
+                stroke="none",
+                stroke_width=0,
+                rx=4,
+            )
+    svg.line(305, 305, group_x, 305, arrow=True)
+
+    module(
+        svg,
+        810,
+        220,
+        210,
+        170,
         "Filter · Dedup · MMR",
-        "Validity filter\nDisplay dedup\nRaw logprob\nMMR",
+        "中文合法性\n显示去重\n原始分数与多样性",
         fill=COLORS["orange_fill"],
         stroke=COLORS["orange"],
     )
-    svg.line(group_x + group_w, 270, rank_x, 270, arrow=True)
+    svg.line(group_x + group_w, 305, 810, 305, arrow=True)
 
-    top_x, top_y, top_w, top_h = 1445, 145, 115, 190
+    top_x, top_y, top_w, top_h = 1075, 145, 280, 350
     svg.rect(top_x, top_y, top_w, top_h, fill=COLORS["green_fill"], stroke=COLORS["green"], shadow=True)
-    svg.text(top_x + top_w / 2, top_y + 28, "Top-3", size=20, weight=700, fill=COLORS["green"])
-    for index in range(3):
-        card_y = top_y + 53 + index * 42
-        svg.rect(top_x + 15, card_y, top_w - 30, 30, fill="#ffffff", stroke=COLORS["green"], rx=8)
-        svg.text(top_x + top_w / 2, card_y + 16, f"Candidate {index + 1}", size=12, weight=600)
-    svg.line(rank_x + rank_w, 240, top_x, 240, arrow=True)
-
-    svg.text(1060, 445, "EOS / sentence-end rows exit immediately; no padded Decode", size=14, weight=500, fill=COLORS["muted"])
-
-    cards = [
-        (
-            40,
-            "latest-wins",
-            "Generation N becomes stale\nRelease old suffix KV after current token step",
-            COLORS["red_fill"],
-            COLORS["red"],
-        ),
-        (
-            435,
-            "KV ownership",
-            "Prefix pages shared by candidate group\nSuffix pages owned per candidate",
-            COLORS["violet_fill"],
-            COLORS["violet"],
-        ),
-        (
-            830,
-            "On-demand refill",
-            "Start with 8 rows; sample 4 more\nonly when fewer than 3 survive",
-            COLORS["orange_fill"],
-            COLORS["orange"],
-        ),
-        (
-            1225,
-            "Top-3 diversity selection",
-            "Raw LM score + soft penalties\nCharacter-bigram MMR",
-            COLORS["green_fill"],
-            COLORS["green"],
-        ),
+    svg.text(top_x + top_w / 2, top_y + 40, "Top-3", size=27, weight=700, fill=COLORS["green"])
+    candidates = [
+        "我晚点给你一个\n明确答复。",
+        "我晚点给你发消息。",
+        "我晚一点给你一个\n明确答复。",
     ]
-    for x, heading, detail, fill, stroke in cards:
-        module(svg, x, 525, 335, 155, heading, detail, fill=fill, stroke=stroke)
+    for index, candidate in enumerate(candidates):
+        card_y = top_y + 75 + index * 82
+        svg.rect(top_x + 18, card_y, top_w - 36, 66, fill="#ffffff", stroke=COLORS["green"], rx=8)
+        svg.text(top_x + top_w / 2, card_y + 34, candidate, size=15, weight=600)
+    svg.line(1020, 305, top_x, 305, arrow=True)
 
+    svg.text(700, 615, "结束分支立即离开批次 · 首轮生成八路 · 有效且互异候选不足三条时才补四路", size=18, weight=500, fill=COLORS["muted"])
+
+    svg.save(path)
+
+
+def render_prefix_kv(path: Path) -> None:
+    svg = Svg(1400, 760, "AIOS-IME token-LCP Prefix KV reuse and latest-wins")
+    title(
+        svg,
+        "Across Keystrokes: Token-LCP KV Reuse",
+        "Retokenize first · reuse stable token pages only · latest generation wins",
+    )
+
+    svg.text(55, 135, "上一次按键：没关系，你先忙你", size=21, weight=700, anchor="start", fill="#1e3a5f")
+    svg.text(55, 285, "当前按键：没关系，你先忙你的，", size=21, weight=700, anchor="start", fill="#1e3a5f")
+    old_tokens = ["3497", "243", "192", "144", "297", "518", "3035", "297"]
+    new_tokens = ["3497", "243", "192", "144", "297", "518", "3559", "243", "192", "144"]
+    token_x, token_w, token_gap = 315, 72, 10
+    for index, value in enumerate(old_tokens):
+        x = token_x + index * (token_w + token_gap)
+        svg.rect(x, 160, token_w, 52, fill=COLORS["blue_fill"], stroke=COLORS["blue"], rx=9)
+        svg.text(x + token_w / 2, 187, value, size=16, weight=700, family=MONO)
+    for index, value in enumerate(new_tokens):
+        x = token_x + index * (token_w + token_gap)
+        stable = index < 6
+        svg.rect(
+            x,
+            310,
+            token_w,
+            52,
+            fill=COLORS["green_fill"] if stable else COLORS["orange_fill"],
+            stroke=COLORS["green"] if stable else COLORS["orange"],
+            rx=9,
+        )
+        svg.text(x + token_w / 2, 337, value, size=16, weight=700, family=MONO)
+
+    svg.text(235, 187, "token IDs", size=15, weight=600, fill=COLORS["muted"])
+    svg.text(235, 337, "token IDs", size=15, weight=600, fill=COLORS["muted"])
+    module(svg, 180, 405, 300, 90, "token-LCP = 6", "Reuse first 6 stable tokens", fill=COLORS["green_fill"], stroke=COLORS["green"])
+    module(svg, 555, 405, 385, 90, "Tokenizer", "尾部发生重切\n3035 + 297  →  3559 + …", fill=COLORS["orange_fill"], stroke=COLORS["orange"])
+    module(svg, 1015, 405, 300, 90, "重新计算尾部", "不按字符长度复用错误缓存", fill=COLORS["violet_fill"], stroke=COLORS["violet"])
+    svg.line(480, 450, 555, 450, arrow=True)
+    svg.line(940, 450, 1015, 450, arrow=True)
+
+    svg.rect(45, 555, 1310, 155, fill=COLORS["panel"], stroke=COLORS["grid"], shadow=True)
+    svg.text(75, 590, "latest-wins", size=22, weight=700, anchor="start", fill=COLORS["red"])
+    module(svg, 210, 605, 235, 70, "上一次按键", "旧候选组失效", fill=COLORS["red_fill"], stroke=COLORS["red"])
+    module(svg, 580, 605, 260, 70, "token-step boundary", "丢弃旧输出并释放缓存", fill=COLORS["orange_fill"], stroke=COLORS["orange"])
+    module(svg, 975, 605, 300, 70, "当前按键", "唯一有效的候选组", fill=COLORS["green_fill"], stroke=COLORS["green"])
+    svg.line(445, 640, 580, 640, arrow=True)
+    svg.line(840, 640, 975, 640, arrow=True)
+
+    svg.save(path)
+
+
+def render_vllm_comparison(path: Path) -> None:
+    svg = Svg(1400, 690, "vLLM general serving compared with AIOS-IME local workload")
+    title(
+        svg,
+        "Same Inference Primitives, Different Workload",
+        "vLLM optimizes general serving throughput · AIOS-IME optimizes one keystroke's complete Top-3 p95",
+    )
+
+    left_x, right_x, panel_y, panel_w, panel_h = 45, 755, 125, 600, 470
+    svg.rect(left_x, panel_y, panel_w, panel_h, fill=COLORS["panel"], stroke=COLORS["blue"], shadow=True)
+    svg.rect(right_x, panel_y, panel_w, panel_h, fill=COLORS["panel"], stroke=COLORS["green"], shadow=True)
+    svg.text(left_x + panel_w / 2, 165, "vLLM · General Serving", size=25, weight=700, fill=COLORS["blue"])
+    svg.text(right_x + panel_w / 2, 165, "AIOS-IME · Local IME", size=25, weight=700, fill=COLORS["green"])
+
+    for index, label in enumerate(("User A", "User B", "User C")):
+        module(svg, 80, 215 + index * 105, 130, 72, label, "独立请求", fill=COLORS["blue_fill"], stroke=COLORS["blue"])
+        svg.line(210, 251 + index * 105, 300, 330, arrow=True)
+    module(svg, 300, 245, 260, 170, "Continuous Batching", "跨请求调度\n提升 GPU 吞吐", fill=COLORS["cyan_fill"], stroke=COLORS["cyan"])
+    module(svg, 300, 455, 260, 80, "优化目标", "tokens/s · request throughput", fill=COLORS["slate"], stroke=COLORS["slate_dark"])
+
+    module(svg, 790, 215, 220, 100, "连续按键", "…你先忙你\n→ …你先忙你的，", fill=COLORS["green_fill"], stroke=COLORS["green"])
+    module(svg, 1085, 215, 230, 100, "latest-wins", "只保留当前 generation", fill=COLORS["red_fill"], stroke=COLORS["red"])
+    svg.line(1010, 265, 1085, 265, arrow=True)
+    module(svg, 790, 360, 220, 120, "Prefix Prefill Once", "Reuse token-LCP KV", fill=COLORS["violet_fill"], stroke=COLORS["violet"])
+    module(svg, 1085, 360, 230, 120, "内部候选组", "八路解码，显示三条", fill=COLORS["orange_fill"], stroke=COLORS["orange"])
+    svg.line(1010, 420, 1085, 420, arrow=True)
+    module(svg, 900, 510, 300, 55, "优化目标", "完整三条候选的尾延迟、显存与正确性", fill=COLORS["green_fill"], stroke=COLORS["green"])
+
+    svg.text(700, 635, "Paged KV · Prefix Cache · Parallel Sampling are shared primitives; scheduling, lifecycle, ranking, and metrics differ.", size=18, weight=500, fill=COLORS["muted"])
     svg.save(path)
 
 
@@ -471,94 +548,77 @@ def render_performance(path: Path) -> None:
 
 
 def render_model(path: Path) -> None:
-    svg = Svg(1600, 900, "MiniMind-IME 0.1B deployment model architecture")
+    svg = Svg(1400, 520, "MiniMind-IME 0.1B deployment model overview")
     title(
         svg,
         "MiniMind-IME 0.1B Deployment Model",
         "100,687,360 online parameters · Dense Decoder-only Transformer · BF16",
     )
 
-    top_y, top_h = 135, 125
-    module(svg, 45, top_y, 155, top_h, "Token IDs", "BOS + Chinese context")
-    module(svg, 250, top_y, 190, top_h, "Tied Embedding", "16,384 × 768", fill=COLORS["blue_fill"], stroke=COLORS["blue"])
-    for offset in (18, 12, 6):
-        svg.rect(495 + offset, top_y - offset, 315, top_h, fill=COLORS["violet_fill"], stroke=COLORS["violet"], rx=14)
-    module(svg, 495, top_y, 315, top_h, "Decoder Block × 14", "GQA Attention + SwiGLU MLP", fill=COLORS["violet_fill"], stroke=COLORS["violet"])
-    module(svg, 860, top_y, 175, top_h, "Final RMSNorm", "eps = 1e-6", fill=COLORS["cyan_fill"], stroke=COLORS["cyan"])
-    module(svg, 1085, top_y, 190, top_h, "Tied LM Head", "Shares embedding weights", fill=COLORS["blue_fill"], stroke=COLORS["blue"])
-    module(svg, 1325, top_y, 225, top_h, "Next-token logits", "Vocabulary = 16,384", fill=COLORS["green_fill"], stroke=COLORS["green"])
-    for x1, x2 in ((200, 250), (440, 495), (828, 860), (1035, 1085), (1275, 1325)):
+    top_y, top_h = 145, 140
+    module(svg, 40, top_y, 150, top_h, "Token IDs", "BOS + context")
+    module(svg, 230, top_y, 180, top_h, "Tied Embedding", "16,384 × 768", fill=COLORS["blue_fill"], stroke=COLORS["blue"])
+    for offset in (16, 10, 5):
+        svg.rect(450 + offset, top_y - offset, 280, top_h, fill=COLORS["violet_fill"], stroke=COLORS["violet"], rx=14)
+    module(svg, 450, top_y, 280, top_h, "Decoder × 14", "GQA + SwiGLU", fill=COLORS["violet_fill"], stroke=COLORS["violet"])
+    module(svg, 770, top_y, 170, top_h, "Final RMSNorm", "eps = 1e-6", fill=COLORS["cyan_fill"], stroke=COLORS["cyan"])
+    module(svg, 980, top_y, 180, top_h, "Tied LM Head", "Shared weights", fill=COLORS["blue_fill"], stroke=COLORS["blue"])
+    module(svg, 1200, top_y, 160, top_h, "Logits", "Vocab 16,384", fill=COLORS["green_fill"], stroke=COLORS["green"])
+    for x1, x2 in ((190, 230), (410, 450), (746, 770), (940, 980), (1160, 1200)):
         svg.line(x1, top_y + top_h / 2, x2, top_y + top_h / 2, arrow=True)
-    svg.path("M 345 272 C 345 320, 1178 320, 1178 272", color=COLORS["blue"], width=2, dash="6 5")
-    svg.text(760, 308, "tied weights", size=13, weight=600, fill=COLORS["blue"])
+    svg.path("M 320 300 C 320 345, 1070 345, 1070 300", color=COLORS["blue"], width=2, dash="6 5")
+    svg.text(695, 337, "tied weights", size=16, weight=600, fill=COLORS["blue"])
 
-    spec_x, spec_y, spec_w, spec_h = 45, 370, 245, 430
-    svg.rect(spec_x, spec_y, spec_w, spec_h, fill=COLORS["panel"], stroke=COLORS["grid"], shadow=True)
-    svg.text(spec_x + 24, spec_y + 35, "Deployment profile", size=21, weight=700, anchor="start", fill="#1e3a5f")
     specs = [
-        ("Hidden size", "768"),
-        ("Intermediate", "2,048"),
-        ("Q / KV heads", "12 / 4"),
-        ("Head dim", "64"),
-        ("Context", "512 tokens"),
-        ("Precision", "BF16"),
-        ("Weights", "192.05 MiB"),
-        ("KV / token", "14 KiB"),
+        (40, "100.69M", "online parameters", COLORS["violet_fill"], COLORS["violet"]),
+        (375, "14 layers", "hidden 768 · MLP 2,048", COLORS["blue_fill"], COLORS["blue"]),
+        (710, "12 Q / 4 KV", "GQA · head dim 64", COLORS["cyan_fill"], COLORS["cyan"]),
+        (1045, "512 tokens", "standard RoPE · no YaRN", COLORS["green_fill"], COLORS["green"]),
     ]
-    for index, (name, value) in enumerate(specs):
-        row_y = spec_y + 80 + index * 40
-        svg.text(spec_x + 24, row_y, name, size=13, weight=400, anchor="start", fill=COLORS["muted"])
-        svg.text(spec_x + spec_w - 24, row_y, value, size=14, weight=700, anchor="end")
-        if index < len(specs) - 1:
-            svg.line(spec_x + 24, row_y + 20, spec_x + spec_w - 24, row_y + 20, color=COLORS["grid"], width=1)
+    for x, heading, detail, fill, stroke in specs:
+        module(svg, x, 385, 300, 90, heading, detail, fill=fill, stroke=stroke, heading_color=stroke)
 
-    block_x, block_y, block_w, block_h = 335, 365, 1215, 445
-    svg.rect(block_x, block_y, block_w, block_h, fill=COLORS["panel"], stroke=COLORS["violet"], shadow=True)
-    svg.text(block_x + 28, block_y + 35, "Single Decoder Block", size=21, weight=700, anchor="start", fill=COLORS["violet"])
-    svg.text(block_x + block_w - 28, block_y + 35, "Pre-Norm · Residual · Full Attention", size=13, weight=500, anchor="end", fill=COLORS["muted"])
+    svg.save(path)
 
-    flow_y = 570
+
+def render_decoder_block(path: Path) -> None:
+    svg = Svg(1400, 600, "MiniMind-IME single decoder block")
+    title(
+        svg,
+        "MiniMind-IME Single Decoder Block",
+        "Pre-Norm · residual connections · full attention · GQA",
+    )
+
+    flow_y = 245
     components = [
-        (380, 115, "Input", "x", COLORS["slate"], COLORS["border"]),
-        (535, 135, "RMSNorm", "", COLORS["cyan_fill"], COLORS["cyan"]),
-        (710, 220, "GQA Attention", "QK Norm · RoPE\n12 Q heads · 4 KV heads", COLORS["blue_fill"], COLORS["blue"]),
-        (985, 58, "+", "", COLORS["green_fill"], COLORS["green"]),
-        (1085, 135, "RMSNorm", "", COLORS["cyan_fill"], COLORS["cyan"]),
-        (1260, 220, "SwiGLU MLP", "768 → 2048 → 768", COLORS["orange_fill"], COLORS["orange"]),
+        (40, 120, "Input", "x", COLORS["slate"], COLORS["border"]),
+        (210, 150, "RMSNorm", "", COLORS["cyan_fill"], COLORS["cyan"]),
+        (410, 250, "GQA Attention", "QK Norm · RoPE\n12 Q heads · 4 KV heads", COLORS["blue_fill"], COLORS["blue"]),
+        (710, 70, "+", "", COLORS["green_fill"], COLORS["green"]),
+        (830, 150, "RMSNorm", "", COLORS["cyan_fill"], COLORS["cyan"]),
+        (1030, 250, "SwiGLU MLP", "768 → 2,048 → 768", COLORS["orange_fill"], COLORS["orange"]),
+        (1330, 50, "+", "", COLORS["green_fill"], COLORS["green"]),
     ]
     for x, width, heading, detail, fill, stroke in components:
-        module(svg, x, flow_y, width, 105, heading, detail, fill=fill, stroke=stroke, heading_color=stroke)
-    for x1, x2 in ((495, 535), (670, 710), (930, 985), (1043, 1085), (1220, 1260)):
-        svg.line(x1, flow_y + 52, x2, flow_y + 52, arrow=True)
+        module(svg, x, flow_y, width, 120, heading, detail, fill=fill, stroke=stroke, heading_color=stroke)
+    for x1, x2 in ((160, 210), (360, 410), (660, 710), (780, 830), (980, 1030), (1280, 1330)):
+        svg.line(x1, flow_y + 60, x2, flow_y + 60, arrow=True)
 
     svg.path(
-        f"M 437 {flow_y} C 437 480, 1014 480, 1014 {flow_y}",
+        f"M 100 {flow_y} C 100 145, 745 145, 745 {flow_y}",
         color=COLORS["green"],
-        width=2.2,
+        width=2.5,
         arrow=True,
     )
-    svg.text(725, 472, "residual", size=13, weight=600, fill=COLORS["green"])
-
-    output_x = 1500
-    module(svg, output_x, flow_y, 40, 105, "", "", fill=COLORS["green_fill"], stroke=COLORS["green"])
-    svg.text(output_x + 20, flow_y + 53, "+", size=25, weight=700, fill=COLORS["green"])
-    svg.line(1480, flow_y + 52, output_x, flow_y + 52, arrow=True)
+    svg.text(420, 155, "attention residual", size=17, weight=600, fill=COLORS["green"])
     svg.path(
-        f"M 1014 {flow_y + 105} C 1014 745, 1520 745, 1520 {flow_y + 105}",
+        f"M 745 {flow_y + 120} C 745 490, 1355 490, 1355 {flow_y + 120}",
         color=COLORS["green"],
-        width=2.2,
+        width=2.5,
         arrow=True,
     )
-    svg.text(1267, 760, "residual", size=13, weight=600, fill=COLORS["green"])
-
-    svg.text(
-        942,
-        850,
-        "MTP auxiliary weights are stripped during export; deployment keeps the 100.69M backbone only",
-        size=15,
-        weight=500,
-        fill=COLORS["muted"],
-    )
+    svg.text(1050, 505, "MLP residual", size=17, weight=600, fill=COLORS["green"])
+    svg.text(700, 555, "Training-only MTP weights are stripped during export.", size=18, weight=500, fill=COLORS["muted"])
     svg.save(path)
 
 
@@ -575,12 +635,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     render_runtime(args.output_dir / "aios-ime-runtime-architecture.svg")
+    render_candidate_group(args.output_dir / "aios-ime-candidate-group.svg")
+    render_prefix_kv(args.output_dir / "aios-ime-prefix-kv.svg")
+    render_vllm_comparison(args.output_dir / "aios-ime-vllm-comparison.svg")
     render_performance(args.output_dir / "aios-ime-performance.svg")
     render_model(args.output_dir / "minimind-ime-model-architecture.svg")
+    render_decoder_block(args.output_dir / "minimind-ime-decoder-block.svg")
     for name in (
         "aios-ime-runtime-architecture.svg",
+        "aios-ime-candidate-group.svg",
+        "aios-ime-prefix-kv.svg",
+        "aios-ime-vllm-comparison.svg",
         "aios-ime-performance.svg",
         "minimind-ime-model-architecture.svg",
+        "minimind-ime-decoder-block.svg",
     ):
         print(args.output_dir / name)
 

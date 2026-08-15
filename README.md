@@ -25,6 +25,100 @@ Top 3：我晚一点给你一个明确答复。
 一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
 logprob 排序和字符 bigram MMR 选择。
 
+### 多场景补全示例
+
+以下结果均由当前部署模型和默认推理配置实际生成。除购物示例使用 `seed=13` 外，其余
+示例均使用 `seed=7`。这些样例用于展示模型能力和候选形态；总体效果由冻结评测约束，
+最终仍需真实用户选择率验证。
+
+#### 通勤与日常沟通
+
+```text
+输入前缀：公交还有两站才到，我先沿着导航慢慢走，等我走近
+
+Top 1：再给你发消息。
+Top 2：再联系。
+Top 3：一点再给你发消息。
+```
+
+```text
+输入前缀：我刚从公司楼里出来，我改走地铁会更稳妥
+
+Top 1：一点，下班后直接过去。
+Top 2：，你不用一直等我。
+Top 3：，下班路上顺便买杯咖啡。
+```
+
+#### 健康与运动
+
+```text
+输入前缀：最近跑步时总是开始得太快，前十分钟容易把自己累到，前面刻意把速度放慢，后面会更
+
+Top 1：容易坚持。
+Top 2：自然。
+Top 3：好。
+```
+
+```text
+输入前缀：我把瑜伽垫重新铺出来了，先把肩膀和后背放松一下，动作
+
+Top 1：轻一点再放慢一点。
+Top 2：轻一点也更容易坚持。
+Top 3：轻一点不要硬撑。
+```
+
+```text
+输入前缀：早上起来鼻子有点堵，把不着急的事情放到明天，身体状态不
+
+Top 1：好的时候再看会更清楚。
+Top 2：好就早点休息。
+Top 3：好就早点睡觉。
+```
+
+#### 工作与生活安排
+
+```text
+输入前缀：月底前还有两笔费用要确认，金额不大但最好及时处理，今晚再
+
+Top 1：确认一次。
+Top 2：核对金额。
+Top 3：核对一次费用。
+```
+
+```text
+输入前缀：这几天晚上总忍不住看手机，屏幕看久了脑子更清醒，我把明天要带的东西先准备好，出门时
+
+Top 1：直接放进包里。
+Top 2：直接拿，不用临时找东西。
+Top 3：不用再找东西。
+```
+
+```text
+输入前缀：这次买东西前最好看一下预算，先放两天再决定，真正需要
+
+Top 1：时再下单。
+Top 2：的东西先放两天。
+Top 3：的那件先放进购物车。
+```
+
+#### 回忆与内容整理
+
+```text
+输入前缀：刚才我翻到我们以前一起拍的照片，有几张现在看还是挺有意思
+
+Top 1：，下次见面的时候一起看看。
+Top 2：，下次见面一起看看。
+Top 3：，下次见面时一起看看。
+```
+
+```text
+输入前缀：刚才我整理完去年拍的旅行照片，很多画面现在看还是很有意思，按时间和地点分成几个文件夹，之后找
+
+Top 1：起来会方便很多。
+Top 2：回来会更容易找到。
+Top 3：回来会方便很多。
+```
+
 ## 性能
 
 ![AIOS-IME performance](docs/images/aios-ime-performance.svg)
@@ -69,6 +163,34 @@ Prefill、候选组 Decode、原始 logprob、解码、过滤、去重和 Top-3 
 主路径只处理中文前缀的开放生成。若上游输入法已经通过拼音词典召回一组中文词，运行时
 还可以复用同一个模型对候选执行条件概率重排序；该接口不参与上述中文前缀 Top-3 延迟。
 
+## 相较 vLLM 的输入法专门化
+
+AIOS-IME 不是 vLLM 的 fork，也不把已有的通用推理能力包装成新发明。vLLM 已支持
+Continuous Batching、PagedAttention、Prefix Caching 和并行采样；可参见
+[vLLM 官方能力概览](https://docs.vllm.ai/en/latest/)、
+[Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
+以及 [`SamplingParams.n`](https://docs.vllm.ai/en/latest/api/vllm/index.html)。本项目的改造点是
+把这些底层思想落到“本地单用户、连续按键、一次返回完整 Top-3”的输入法 workload 上。
+
+![vLLM general serving versus AIOS-IME workload](docs/images/aios-ime-vllm-comparison.svg)
+
+| 维度 | vLLM 通用服务 | AIOS-IME 输入法路径 |
+|---|---|---|
+| 优化目标 | 多请求吞吐、GPU 利用率和通用请求延迟 | 一次按键的完整 Top-3 p50/p95、候选完整率和峰值显存 |
+| 调度对象 | 多个独立请求/sequence | 当前按键内部的一个 CandidateGroup；不存在等待合批的用户 B |
+| 请求生命周期 | 通用请求排队、运行、结束或 abort | latest-wins；新按键使旧 generation 失效，token-step 结束后丢弃旧输出并释放 suffix KV |
+| 多候选生成 | `n` 路并行采样属于通用请求参数 | 首轮独立生成 8 路；过滤后不足三条且仍在 deadline 内才补 4 路 |
+| Prefix 复用 | APC 对可复用的完整 token block 做哈希缓存 | 每次按键重新分词，计算相邻输入的精确 token-LCP，只保留稳定 token page |
+| 候选 KV | 通用 PagedAttention 管理 sequence block | 同组候选借用同一组物理 Prefix page；后缀页独占，结束 row 立即压缩并释放 |
+| 采样与评分 | 通用 Temperature、Top-k、Top-p 和输出序列 | 采样前保留原始模型 logprob，随后执行中文过滤、显示去重、软惩罚和 MMR Top-3 |
+| 输出契约 | 通用文本生成、流式输出或批量结果 | 固定 `[BOS] + 裸中文前缀`，输出三条可直接进入候选栏的短后缀 |
+| 显存策略 | 面向不同模型和并发规模配置 cache | 0.1B 本地模型使用 256 个 token page 和 1 MiB workspace 的低显存 profile |
+| 评测 | 通用吞吐、token latency 和服务指标 | 完整 Top-3 墙钟延迟、满三条率、互异率、冻结排序质量和取消后的 KV 回收 |
+
+因此，本项目相较 vLLM 的核心不是替换 Paged KV 或 Flash Attention，而是新增一套输入法
+专用的调度语义、候选生命周期、跨按键缓存策略、中文候选后处理和评测基准。底层机制相似，
+优化函数不同。
+
 ## 推理设计
 
 - 裸中文上下文输入，固定使用 `[BOS] + context tokens`，不套 Chat Template。
@@ -105,6 +227,8 @@ Prefill、候选组 Decode、原始 logprob、解码、过滤、去重和 Top-3 
 Prefix Paged KV，只为各自生成的后缀分配新页；完成分支会立即移出 active rows。解码结果
 依次经过合法性过滤、显示归一化、去重和 MMR 排序，有效候选不足三条时再补采样 4 路。
 
+![AIOS-IME CandidateGroup and Top-3 selection](docs/images/aios-ime-candidate-group.svg)
+
 ## 部署模型
 
 | 项目 | 值 |
@@ -126,6 +250,8 @@ Teacher 数据和偏好优化由独立的 MiniMind-IME 训练仓库维护；本�
 部署导出和推理评测。
 
 ![MiniMind-IME model architecture](docs/images/minimind-ime-model-architecture.svg)
+
+![MiniMind-IME decoder block](docs/images/minimind-ime-decoder-block.svg)
 
 ## 评测结果
 
@@ -305,6 +431,8 @@ MiniMind-IME 0.1B 每个 token 的 KV 大小为：
 同一候选组的所有 page-table row 指向同一组 Prefix page，只有生成后的 suffix page 独占。
 候选组完成后立即释放 suffix page，持久 Prefix page 用于下一次按键的 token-LCP 复用。
 
+![AIOS-IME token-LCP Prefix KV reuse](docs/images/aios-ime-prefix-kv.svg)
+
 跨按键实测：
 
 | 输入序列 | 完整 Prefill | 增量 Prefill | 累计加速 |
@@ -375,8 +503,12 @@ tests/
 
 docs/images/
 ├── aios-ime-runtime-architecture.svg
+├── aios-ime-candidate-group.svg
+├── aios-ime-prefix-kv.svg
+├── aios-ime-vllm-comparison.svg
 ├── aios-ime-performance.svg
-└── minimind-ime-model-architecture.svg
+├── minimind-ime-model-architecture.svg
+└── minimind-ime-decoder-block.svg
 ```
 
 ## 平台支持
