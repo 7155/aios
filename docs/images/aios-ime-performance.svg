@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title desc">
+<title id="title">AIOS-IME end-to-end Top-3 latency benchmark</title>
+<desc id="desc">Deterministically rendered AIOS-IME technical diagram.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#607d8b"/></marker>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+</defs>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#1e3a5f"><tspan x="48" y="46.0">AIOS-IME Chinese-Prefix Top-3 Latency</tspan></text>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#64748b"><tspan x="48" y="82.0">NVIDIA GeForce RTX 4080 Laptop GPU · BF16 · 5 warmups · 30 timed prompts</tspan></text>
+<rect x="55" y="125" width="1080" height="450" rx="14" fill="#ffffff" stroke="#dbe4ee" stroke-width="1.8" filter="url(#shadow)"/>
+<line x1="315.0" y1="165" x2="315.0" y2="530" stroke="#dbe4ee" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="4 6"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#64748b"><tspan x="315.0" y="150.0">0 ms</tspan></text>
+<line x1="531.6666666666666" y1="165" x2="531.6666666666666" y2="530" stroke="#dbe4ee" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="4 6"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#64748b"><tspan x="531.6666666666666" y="150.0">100 ms</tspan></text>
+<line x1="748.3333333333333" y1="165" x2="748.3333333333333" y2="530" stroke="#dbe4ee" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="4 6"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#64748b"><tspan x="748.3333333333333" y="150.0">200 ms</tspan></text>
+<line x1="965.0" y1="165" x2="965.0" y2="530" stroke="#dbe4ee" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="4 6"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#64748b"><tspan x="965.0" y="150.0">300 ms</tspan></text>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="32" font-weight="700" fill="#7c3aed"><tspan x="90" y="235.0">p50</tspan></text>
+<text text-anchor="end" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#172033"><tspan x="293" y="209.0">MiniMind PyTorch</tspan></text>
+<rect x="315" y="195" width="650" height="28" rx="6" fill="#e2e8f0" stroke="none" stroke-width="0"/>
+<rect x="315" y="195" width="560.3866666666667" height="28" rx="6" fill="#94a3b8" stroke="none" stroke-width="0"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#94a3b8"><tspan x="983" y="210.0">258.64 ms</tspan></text>
+<text text-anchor="end" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#172033"><tspan x="293" y="259.0">AIOS-IME</tspan></text>
+<rect x="315" y="245" width="650" height="28" rx="6" fill="#e2e8f0" stroke="none" stroke-width="0"/>
+<rect x="315" y="245" width="177.62333333333333" height="28" rx="6" fill="#2563eb" stroke="none" stroke-width="0"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2563eb"><tspan x="983" y="260.0">81.98 ms</tspan></text>
+<rect x="90" y="295" width="970" height="2" rx="0" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="32" font-weight="700" fill="#7c3aed"><tspan x="90" y="400.0">p95</tspan></text>
+<text text-anchor="end" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#172033"><tspan x="293" y="374.0">MiniMind PyTorch</tspan></text>
+<rect x="315" y="360" width="650" height="28" rx="6" fill="#e2e8f0" stroke="none" stroke-width="0"/>
+<rect x="315" y="360" width="605.4316666666666" height="28" rx="6" fill="#94a3b8" stroke="none" stroke-width="0"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#94a3b8"><tspan x="983" y="375.0">279.43 ms</tspan></text>
+<text text-anchor="end" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#172033"><tspan x="293" y="424.0">AIOS-IME</tspan></text>
+<rect x="315" y="410" width="650" height="28" rx="6" fill="#e2e8f0" stroke="none" stroke-width="0"/>
+<rect x="315" y="410" width="238.26833333333335" height="28" rx="6" fill="#2563eb" stroke="none" stroke-width="0"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2563eb"><tspan x="983" y="425.0">109.97 ms</tspan></text>
+<text text-anchor="end" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1090" y="285.0">Complete Top-3 wall-clock latency</tspan></text>
+<text text-anchor="end" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1090" y="310.0">Excludes model loading and first JIT</tspan></text>
+<rect x="1175" y="145" width="270" height="180" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#2563eb"><tspan x="1310.0" y="217.0">p50 · 3.15×</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1310.0" y="253.45">258.64 ms</tspan><tspan x="1310.0" y="271.0">↓</tspan><tspan x="1310.0" y="288.55">81.98 ms</tspan></text>
+<rect x="1175" y="360" width="270" height="180" rx="14" fill="#cffafe" stroke="#0891b2" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#0891b2"><tspan x="1310.0" y="432.0">p95 · 2.54×</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1310.0" y="468.45">279.43 ms</tspan><tspan x="1310.0" y="486.0">↓</tspan><tspan x="1310.0" y="503.55">109.97 ms</tspan></text>
+<rect x="55" y="615" width="295" height="100" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#7c3aed"><tspan x="202.5" y="655.0">Peak allocated</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="202.5" y="685.0">227.10 MiB</tspan></text>
+<rect x="420" y="615" width="295" height="100" rx="14" fill="#d1fae5" stroke="#059669" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#059669"><tspan x="567.5" y="655.0">Complete Top-3</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="567.5" y="685.0">100%</tspan></text>
+<rect x="785" y="615" width="295" height="100" rx="14" fill="#d1fae5" stroke="#059669" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#059669"><tspan x="932.5" y="655.0">Distinct candidates</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="932.5" y="685.0">100%</tspan></text>
+<rect x="1150" y="615" width="295" height="100" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#d97706"><tspan x="1297.5" y="655.0">Low-memory KV profile</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1297.5" y="685.0">256 pages</tspan></text>
+</svg>

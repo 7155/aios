@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aios"
 version = "0.1.0"
-description = "AIOS LLM Inference Engine (Teaching Project)"
+description = "Low-latency CUDA LLM inference engine for local IME Top-3 generation"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0",

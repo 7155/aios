@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class Engine:
-    """Execution layer: batched forward + per-request sampling (lesson 6)."""
+    """Execution layer for batched forward passes and per-request sampling."""
 
     def __init__(self, model, mha_kv_cache: MHAKVCache) -> None:
         self.model = model

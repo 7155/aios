@@ -37,7 +37,7 @@ class FlashInferAttentionMetadata(BaseAttentionMetadata):
 
 
 class FlashInferAttentionBackend(BaseAttentionBackend):
-    """FlashInfer paged attention backend for teaching-scale AIOS.
+    """FlashInfer paged-attention backend for AIOS.
 
     This mirrors mini-sglang's backend split while keeping metadata creation
     local to the backend for now. Both prefill and decode use flat q/k/v

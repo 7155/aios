@@ -19,6 +19,7 @@ class ModelConfig:
     rope_theta: float
     max_position_embeddings: int
     tie_word_embeddings: bool
+    model_type: str = "unknown"
 
     @classmethod
     def from_hf(cls, config) -> ModelConfig:
@@ -38,6 +39,7 @@ class ModelConfig:
             rope_theta=getattr(config, "rope_theta", 1000000.0),
             max_position_embeddings=config.max_position_embeddings,
             tie_word_embeddings=getattr(config, "tie_word_embeddings", False),
+            model_type=getattr(config, "model_type", "unknown"),
         )
 
     @classmethod
@@ -59,4 +61,5 @@ class ModelConfig:
             rope_theta=data.get("rope_theta", 1000000.0),
             max_position_embeddings=data.get("max_position_embeddings", 32768),
             tie_word_embeddings=data.get("tie_word_embeddings", False),
+            model_type=data.get("model_type", "unknown"),
         )

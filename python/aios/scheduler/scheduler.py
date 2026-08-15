@@ -26,7 +26,7 @@ class Scheduler:
       - On completion, resources are freed immediately via _free_req_resources so that
         a new pending request can reuse the slot / pages in the next iteration.
 
-    Deliberate simplifications vs mini-sglang (documented in the lesson docs):
+    Current implementation boundaries relative to mini-sglang:
       1. No chunked prefill (long-prompt splitting deferred).
       2. No prefix caching (CacheManager.cache_req stays commented; direct page free).
       3. Single CUDA stream, no overlap_loop.

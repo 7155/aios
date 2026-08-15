@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title desc">
+<title id="title">AIOS-IME single-prefix multi-candidate runtime</title>
+<desc id="desc">Deterministically rendered AIOS-IME technical diagram.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#607d8b"/></marker>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+</defs>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#1e3a5f"><tspan x="48" y="46.0">AIOS-IME Chinese-Prefix Top-3 Inference</tspan></text>
+<text text-anchor="start" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#64748b"><tspan x="48" y="82.0">Local single user · one keystroke · one Prefill · complete Top-3</tspan></text>
+<rect x="40" y="145" width="170" height="145" rx="14" fill="#eceff1" stroke="#455a64" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="125.0" y="203.0">Chinese Prefix</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="125.0" y="246.5">Raw text + BOS</tspan></text>
+<rect x="240" y="145" width="190" height="145" rx="14" fill="#cffafe" stroke="#0891b2" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="335.0" y="203.0">Tokenizer</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="335.0" y="246.5">Retokenize · token-LCP</tspan></text>
+<rect x="460" y="145" width="185" height="145" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="552.5" y="203.0">Prefix Prefill</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="552.5" y="246.5">Run once</tspan></text>
+<rect x="675" y="145" width="215" height="145" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="782.5" y="203.0">Shared Prefix KV</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="782.5" y="246.5">Physical pages shared</tspan></text>
+<line x1="210" y1="217.5" x2="240" y2="217.5" stroke="#607d8b" stroke-width="2.2" stroke-linecap="round" marker-end="url(#arrow)"/>
+<line x1="430" y1="217.5" x2="460" y2="217.5" stroke="#607d8b" stroke-width="2.2" stroke-linecap="round" marker-end="url(#arrow)"/>
+<line x1="645" y1="217.5" x2="675" y2="217.5" stroke="#607d8b" stroke-width="2.2" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="930" y="120" width="260" height="300" rx="14" fill="#ffffff" stroke="#2563eb" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#172033"><tspan x="1060.0" y="139.0">CandidateGroup</tspan><tspan x="1060.0" y="157.0">Batched Decode</tspan></text>
+<rect x="948" y="175" width="224" height="21" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="186.0">1</tspan></text>
+<rect x="990" y="180" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="180" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="180" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="180" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1082" y="180" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1105" y="180" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="203" width="224" height="21" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="214.0">2</tspan></text>
+<rect x="990" y="208" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="208" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="208" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="208" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1082" y="208" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1105" y="208" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="231" width="224" height="21" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="242.0">3</tspan></text>
+<rect x="990" y="236" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="236" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="236" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="236" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1082" y="236" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1105" y="236" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="259" width="224" height="21" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="270.0">4</tspan></text>
+<rect x="990" y="264" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="264" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="264" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="264" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1082" y="264" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1105" y="264" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="287" width="224" height="21" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="298.0">5</tspan></text>
+<rect x="990" y="292" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="292" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="292" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="292" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1082" y="292" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1105" y="292" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="315" width="224" height="21" rx="6" fill="#eceff1" stroke="#94a3b8" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="326.0">6</tspan></text>
+<rect x="990" y="320" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="320" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="320" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="320" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1082" y="320" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1105" y="320" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="343" width="224" height="21" rx="6" fill="#eceff1" stroke="#94a3b8" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="354.0">7</tspan></text>
+<rect x="990" y="348" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="348" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="348" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="348" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1082" y="348" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1105" y="348" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="948" y="371" width="224" height="21" rx="6" fill="#eceff1" stroke="#94a3b8" stroke-width="1.0"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#2563eb"><tspan x="966" y="382.0">8</tspan></text>
+<rect x="990" y="376" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1013" y="376" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1036" y="376" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1059" y="376" width="15" height="11" rx="3" fill="#0891b2" stroke="none" stroke-width="0"/>
+<rect x="1082" y="376" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<rect x="1105" y="376" width="15" height="11" rx="3" fill="#dbe4ee" stroke="none" stroke-width="0"/>
+<path d="M 890 217.5 C 910 217.5, 910 270, 930 270" fill="none" stroke="#607d8b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1215" y="145" width="200" height="190" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="1315.0" y="221.0">Filter · Dedup · MMR</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1315.0" y="251.675">Validity filter</tspan><tspan x="1315.0" y="269.225">Display dedup</tspan><tspan x="1315.0" y="286.77500000000003">Raw logprob</tspan><tspan x="1315.0" y="304.32500000000005">MMR</tspan></text>
+<line x1="1190" y1="270" x2="1215" y2="270" stroke="#607d8b" stroke-width="2.2" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="1445" y="145" width="115" height="190" rx="14" fill="#d1fae5" stroke="#059669" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#059669"><tspan x="1502.5" y="173.0">Top-3</tspan></text>
+<rect x="1460" y="198" width="85" height="30" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.8"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#172033"><tspan x="1502.5" y="214.0">Candidate 1</tspan></text>
+<rect x="1460" y="240" width="85" height="30" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.8"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#172033"><tspan x="1502.5" y="256.0">Candidate 2</tspan></text>
+<rect x="1460" y="282" width="85" height="30" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.8"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#172033"><tspan x="1502.5" y="298.0">Candidate 3</tspan></text>
+<line x1="1415" y1="240" x2="1445" y2="240" stroke="#607d8b" stroke-width="2.2" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="14" font-weight="500" fill="#64748b"><tspan x="1060" y="445.0">EOS / sentence-end rows exit immediately; no padded Decode</tspan></text>
+<rect x="40" y="525" width="335" height="155" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="207.5" y="587.0">latest-wins</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="207.5" y="624.725">Generation N becomes stale</tspan><tspan x="207.5" y="642.275">Release old suffix KV after current token step</tspan></text>
+<rect x="435" y="525" width="335" height="155" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="602.5" y="587.0">KV ownership</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="602.5" y="624.725">Prefix pages shared by candidate group</tspan><tspan x="602.5" y="642.275">Suffix pages owned per candidate</tspan></text>
+<rect x="830" y="525" width="335" height="155" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="997.5" y="587.0">On-demand refill</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="997.5" y="624.725">Start with 8 rows; sample 4 more</tspan><tspan x="997.5" y="642.275">only when fewer than 3 survive</tspan></text>
+<rect x="1225" y="525" width="335" height="155" rx="14" fill="#d1fae5" stroke="#059669" stroke-width="1.8" filter="url(#shadow)"/>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#172033"><tspan x="1392.5" y="587.0">Top-3 diversity selection</tspan></text>
+<text text-anchor="middle" dominant-baseline="middle" font-family="'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#64748b"><tspan x="1392.5" y="624.725">Raw LM score + soft penalties</tspan><tspan x="1392.5" y="642.275">Character-bigram MMR</tspan></text>
+</svg>

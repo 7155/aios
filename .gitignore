@@ -29,6 +29,7 @@ venv/
 ENV/
 env/
 .venv/
+.venv
 
 # IDE
 .idea/
@@ -52,6 +53,10 @@ checkpoints/
 # Logs
 *.log
 logs/
+
+# Local IME artifacts may contain held-out or real user prompts
+incoming/
+reports/aios_ime_*.json
 
 # OS
 .DS_Store

@@ -71,6 +71,9 @@ class Batch:
     out_loc: torch.Tensor = field(init=False)
     # this field should be set by attention backend
     attn_metadata: "BaseAttentionMetadata" = field(init=False)
+    # Diagnostics/evaluation may need every causal position. Serving prefill
+    # keeps the default last-position-only projection to avoid wasted logits.
+    return_all_logits: bool = False
 
     @property
     def is_prefill(self) -> bool:

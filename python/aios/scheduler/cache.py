@@ -33,9 +33,9 @@ class CacheManager:
                 req.cached_len : req.device_len,
             ] = indices
 
-    # Temporarily disabled: these methods support prefix cache handle management
-    # and integrity checks, but they are unused by the current lesson-6 paged
-    # KV path. Keep the implementation below commented for future re-enable.
+    # Temporarily disabled: these methods support prefix-cache handle management
+    # and integrity checks, but the current generic paged-KV path does not use
+    # them. Keep the implementation below for a future cache-eviction backend.
     #
     # def lock(self, handle: BaseCacheHandle) -> None:
     #     self.manager.lock_handle(handle, unlock=False)

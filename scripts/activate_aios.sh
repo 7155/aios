@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Source this file before running AIOS lessons in an interactive shell:
+# Source this file before running AIOS tools in an interactive shell:
 #   source scripts/activate_aios.sh
 
 export VIRTUAL_ENV="${VIRTUAL_ENV:-/home/codex/ai/venvs/minimind}"

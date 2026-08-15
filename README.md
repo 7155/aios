@@ -1,179 +1,393 @@
-# AIOS: Build an LLM Inference Engine from Scratch
+# AIOS-IME：面向中文输入法的低延迟 LLM 推理引擎
 
-Have you ever wondered how ChatGPT generates responses? How a model with billions of parameters actually runs on your GPU? Or why inference optimization matters so much?
+AIOS-IME 是面向本地单用户中文输入法的 CUDA LLM 推理系统。它加载 MiniMind-IME 0.1B
+模型，在一次按键请求内并行生成多路候选，经过过滤、去重和排序后返回 Top-3。
 
-AIOS is a hands-on learning project where you build an LLM inference engine from scratch. By the end, you won't just *use* LLMs—you'll understand how inference works under the hood.
+项目主路径是中文前缀补全，重点优化短前缀、短输出、单用户和低显存场景，支持共享
+Prefix KV、候选组批量 Decode、跨按键 Prefix 复用、latest-wins 取消以及 Top-3 多样性选择。
+同拼音候选的语境重排序作为可选扩展，不是模型直接读取拼音生成中文。
 
-## Who This Is For
+![AIOS-IME runtime architecture](docs/images/aios-ime-runtime-architecture.svg)
 
-- **Software engineers** curious about AI/ML systems
-- **ML practitioners** who want to understand inference beyond training
-- **System engineers** interested in GPU programming and optimization
-- **Students** looking for practical, implementable knowledge
+## 中文前缀 Top-3 补全
 
-## What You'll Build
+主路径直接接收用户已经输入的中文前缀，在一个按键请求内生成并返回三条可选后缀：
 
-By completing this project, you will:
+```text
+输入前缀：没关系，你先忙你的，
 
-- Build a production-grade LLM inference engine from a simple HuggingFace model
-- Implement every major optimization: KV cache, paged attention, continuous batching, FlashAttention, CUDA graphs, tensor parallelism
-- Go from ~5 tok/s to ~1200+ tok/s — a **240x improvement**
-- Serve an OpenAI-compatible API
-
-## The Key Mental Model: LLM Inference Engine as an "Operating System"
-
-Traditional computing has an OS that bridges applications and hardware. AI computing has an inference engine that bridges LLMs and GPUs:
-
-| Operating System | Inference Engine |
-|-----------------|------------------|
-| Process scheduling | Request batching & scheduling |
-| Memory management (virtual memory, paging) | KV cache management (paged attention) |
-| I/O scheduling | Prefill/decode scheduling |
-| Device drivers | Kernel/operator optimization |
-| Multi-core parallelism | Multi-GPU tensor parallelism |
-
-## Performance Progression
-
-Each lesson adds one major optimization. Here's the throughput progression:
-
-| Lesson | Throughput (32 req) | Key Optimization | Multiplier |
-|--------|-------------------|------------------|------------|
-| 3 | ~5 tok/s | Baseline (no KV cache) | 1x |
-| 4 | ~25 tok/s | KV cache reuse | 5x |
-| 5 | ~30 tok/s | Pre-allocated cache | 1.2x |
-| 6 | ~30 tok/s | Paged cache (memory efficiency) | — |
-| 7 | ~400 tok/s | Batching | 13x |
-| 8 | ~600 tok/s | Continuous batching | 1.5x |
-| 9 | ~900 tok/s | FlashAttention | 1.5x |
-| 10 | ~1000 tok/s | Fused layers | 1.1x |
-| 11 | ~1200 tok/s | CUDA graphs | 1.2x |
-| 12 | ~1200 tok/s | Sampling (quality) | — |
-| 13 | ~1200 tok/s + prefix | Prefix caching | prefill savings |
-| 14 | ~2000 tok/s (2 GPU) | Tensor parallelism | 1.7x |
-| 15 | Production API | Serving layer | — |
-
-## Course Roadmap
-
-### Foundation (Lessons 0–2)
-
-- **[Lesson 0: Introduction](resources/lesson-0-introduction/README.md)** — Traditional software vs LLMs, why inference matters, course objective
-- **[Lesson 1: LLM Basics](resources/lesson-1-llm-basics/README.md)** — Tokenizer, Transformer architecture, attention, positional encoding, parameters
-- **[Lesson 2: Running Qwen3 with PyTorch](resources/lesson-2-run-qwen3/README.md)** — Loading weights, tokenization, forward pass, generation with HuggingFace
-
-### Building the Engine (Lessons 3–8)
-
-- **[Lesson 3: Remove HuggingFace Dependencies](resources/lesson-3-remove-hf-deps/README.md)** — Own your model: pure nn.Module, direct safetensors loading, manual generation loop
-- **[Lesson 4: Prefill/Decode Split](resources/lesson-4-kv-cache/README.md)** — Understanding KV cache: O(n²) → O(n) compute, 5x speedup
-- **[Lesson 5: Pre-allocated KV Cache](resources/lesson-5-preallocated-kv-cache/README.md)** — Stop memory fragmentation: contiguous cache, position-indexed writes, fused RMSNorm
-- **[Lesson 5: Paged KV Cache](resources/lesson-5-paged-kv-cache/README.md)** — Virtual memory for LLM: block allocator, block tables, slot mapping
-- **[Lesson 7: Batching](resources/lesson-7-batching/README.md)** — Variable-length batching with cu_seqlens, the Context pattern, 13x throughput
-- **[Lesson 8: The Scheduler](resources/lesson-8-scheduler/README.md)** — Continuous batching, prefill-first scheduling, preemption, engine loop
-
-### Optimization (Lessons 9–12)
-
-- **[Lesson 9: FlashAttention](resources/lesson-9-flash-attention/README.md)** — O(N) memory attention, Triton KV cache kernel, 1.5x speedup
-- **[Lesson 10: Fused Layers](resources/lesson-10-fused-layers/README.md)** — QKV fusion, gate+up fusion, smart weight loading, packed_modules_mapping
-- **[Lesson 11: CUDA Graphs](resources/lesson-11-cuda-graphs/README.md)** — Capture and replay decode, eliminate CPU launch overhead, 1.2x speedup
-- **[Lesson 12: Sampling](resources/lesson-12-sampling/README.md)** — Gumbel-max trick, per-request temperature, top-k/top-p filtering
-
-### Scaling and Serving (Lessons 13–15)
-
-- **[Lesson 13: Prefix Caching](resources/lesson-13-prefix-caching/README.md)** — Hash-chain caching, shared system prompts, ~50x prefill reduction
-- **[Lesson 14: Tensor Parallelism](resources/lesson-14-tensor-parallelism/README.md)** — Column/row parallel, NCCL AllReduce, multi-GPU coordination
-- **[Lesson 15: API Server & Benchmarking](resources/lesson-15-api-server/README.md)** — OpenAI-compatible API, SSE streaming, throughput/latency benchmarks
-
-## Engine Architecture (Final State)
-
-```
-aios/
-├── config.py                    # Engine configuration
-├── sampling_params.py           # Per-request sampling parameters
-├── llm.py                       # User-facing API
-├── engine/
-│   ├── llm_engine.py            # Orchestrator (model + scheduler + tokenizer)
-│   ├── scheduler.py             # Prefill-first continuous batching scheduler
-│   ├── model_runner.py          # GPU execution, KV cache, CUDA graphs, TP
-│   ├── sequence.py              # Per-request state machine
-│   └── block_manager.py         # Paged KV cache + prefix caching
-├── models/
-│   └── qwen3.py                 # Inference-only Qwen3 (no HF model deps)
-├── layers/
-│   ├── attention.py             # FlashAttention + Triton KV write
-│   ├── linear.py                # TP-aware linear layers
-│   ├── layernorm.py             # RMSNorm with fused residual add
-│   ├── rotary_embedding.py      # Precomputed RoPE
-│   ├── activation.py            # SiluAndMul (fused gate*up)
-│   ├── embed_head.py            # Vocab-parallel embedding + LM head
-│   └── sampler.py               # Gumbel-max sampling
-└── utils/
-    ├── loader.py                # Weight loader (safetensors → fused modules)
-    └── context.py               # ThreadLocal context for attention metadata
+Top 1：我晚点给你一个明确答复。
+Top 2：我晚点给你发消息。
+Top 3：我晚一点给你一个明确答复。
 ```
 
-## Model Support
+该示例使用当前部署的 MiniMind-IME 0.1B、`seed=7` 和默认 8 路候选配置实际推理得到。
+一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
+logprob 排序和字符 bigram MMR 选择。
 
-Supports all Qwen3 sizes. Exercises are model-size agnostic — config is loaded from `config.json`:
+## 性能
 
-| Model | Parameters | Recommended Use |
-|-------|-----------|-----------------|
-| Qwen3-0.6B | 0.6B | Development, fast iteration |
-| Qwen3-1.7B | 1.7B | Development, basic testing |
-| Qwen3-4B | 4B | Testing, light benchmarking |
-| Qwen3-8B | 8B | Benchmarking |
-| Qwen3-14B | 14B | Benchmarking (needs TP=2) |
-| Qwen3-32B | 32B | Benchmarking (needs TP=4) |
+![AIOS-IME performance](docs/images/aios-ime-performance.svg)
 
-## Quick Start
+测试环境：NVIDIA GeForce RTX 4080 Laptop GPU、BF16、5 次预热、30 条完整 Top-3
+计时样本。
 
-### Prerequisites
+| Runtime | Top-3 p50 | Top-3 p95 | Peak allocated | 满三条 | 三条互异 |
+|---|---:|---:|---:|---:|---:|
+| MiniMind PyTorch | 258.64 ms | 279.43 ms | 216.44 MiB | — | — |
+| AIOS-IME | **81.98 ms** | **109.97 ms** | **227.10 MiB** | 100% | 100% |
 
-- Python 3.10+
-- PyTorch 2.0+
-- CUDA GPU (recommended: A100/H100 for full benchmarks, any GPU for learning)
+AIOS-IME 的 p50 为原 PyTorch 路径的 3.15 倍，p95 为 2.54 倍。计时范围包括 Prefix
+Prefill、候选组 Decode、原始 logprob、解码、过滤、去重和 Top-3 排序，不包括模型加载
+和首次 JIT 编译。
 
-### Install Dependencies
+低显存配置使用 256 个 KV token page 和 1 MiB FlashInfer workspace。需要更长上下文时，
+可以提高 `kv_cache_max_tokens` 和 workspace 大小。
+
+详细结果：
+
+- [最终性能报告](reports/aios_ime_benchmark_final_20260814.md)
+- [冻结评测](reports/aios_ime_frozen_eval_v2_20260814.md)
+- [采样与导出优化 A/B](reports/aios_ime_runtime_hardening_20260815.md)
+- [Prefix KV 复用测试](reports/aios_ime_prefix_reuse_long_20260814.md)
+
+## 输入法推理的特殊性
+
+输入法不是缩短版聊天服务。一次按键只服务本地当前用户，输出不是一段长回答，而是必须
+同时可见、互不重复且能立即选择的三条短候选。因此优化目标是单次按键的完整 Top-3
+尾延迟，而不是跨用户吞吐。
+
+| 输入法约束 | 推理设计 |
+|---|---|
+| 本地单用户，没有用户 B 等待合批 | 只批处理当前前缀内部的候选分支，不把跨请求 Continuous Batching 计入收益 |
+| 候选栏必须稳定显示三条 | 首轮独立生成 8 路；过滤后不足三条时再补 4 路 |
+| 用户继续输入后旧结果立即失效 | latest-wins generation ID；当前 token step 后丢弃旧组并释放 suffix KV |
+| 相邻按键共享大部分前缀 | 重新分词后计算 token-LCP，只复用稳定 token 的 Prefix KV |
+| 多条候选拥有同一个中文前缀 | Prefix 只 Prefill 一次；候选 row 共享物理 Paged KV page |
+| 候选长度短且结束时间不同 | Ragged batched Decode；EOS/句末结束的 row 立即移出 active rows |
+
+主路径只处理中文前缀的开放生成。若上游输入法已经通过拼音词典召回一组中文词，运行时
+还可以复用同一个模型对候选执行条件概率重排序；该接口不参与上述中文前缀 Top-3 延迟。
+
+## 推理设计
+
+- 裸中文上下文输入，固定使用 `[BOS] + context tokens`，不套 Chat Template。
+- 适配 MiniMind-IME 0.1B dense GQA 权重、BF16 推理和 FlashInfer Attention。
+- 同一前缀只执行一次 Prefill，8 条候选共享 Prefix Paged KV。
+- 候选随机流由 `(candidate_seed, token_step)` 唯一确定，row 压缩不改变其余分支结果。
+- `min_new_tokens` 前在采样副本屏蔽 EOS/stop token，排序仍使用原始模型 logprob。
+- 统一执行中文合法性过滤、显示归一化去重、软惩罚和字符 bigram MMR Top-3。
+- 低显存配置限制 KV token page 和 FlashInfer workspace，不按剩余显存无限预分配。
+- 导出器校验模型结构、权重形状、tied embedding 和 MTP 剥离，拒绝静默错误加载。
+
+## 关键取舍
+
+| 方案 | Top-3 p50 / p95 | 满三条 | 结论 |
+|---|---:|---:|---|
+| 固定 8 路、12-token | 87.72 / 140.90 ms | 93.33% | 两组不足三条 |
+| 8 路 + 按需补 4 路、12-token | **81.98 / 109.97 ms** | **100%** | 当前默认 |
+| 8 路 + 按需补 4 路、16-token | 115.55 / 225.71 ms | 86.67% | 长病句和截断增加，弃用 |
+
+- **不直接只生成 3 路**：任意一路被过滤后，候选栏就少于三条；8 路首轮在质量、完整率和
+  显存之间更稳定。
+- **不为补候选无条件生成 12 路**：大多数请求 8 路已经足够，只有不足三条时才承担 refill
+  成本。
+- **不把 Continuous Batching 当作单用户收益**：当前产品只有一个有效候选组，核心并行性
+  来自同一前缀的候选分支。
+- **不盲目延长 Decode**：16-token A/B 同时恶化 p50、p95 和候选完整率，默认保持 12-token
+  上限。
+- **Prefix KV 复用按 token 而非字符判断**：Tokenizer 可能重切尾部；字符前缀相同不代表
+  token IDs 可安全复用。
+
+## 推理流程
+
+输入经过裸中文分词与 token-LCP 匹配后只执行一次 Prefix Prefill。8 条候选共享
+Prefix Paged KV，只为各自生成的后缀分配新页；完成分支会立即移出 active rows。解码结果
+依次经过合法性过滤、显示归一化、去重和 MMR 排序，有效候选不足三条时再补采样 4 路。
+
+## 部署模型
+
+| 项目 | 值 |
+|---|---:|
+| 在线参数 | 100,687,360 |
+| Decoder layers | 14 |
+| Hidden / Intermediate | 768 / 2,048 |
+| Q heads / KV heads | 12 / 4 |
+| Head dim | 64 |
+| Vocabulary | 16,384 |
+| Context limit | 512 tokens |
+| Precision | BF16 |
+| 权重大小 | 192.05 MiB |
+| KV 大小 | 14 KiB/token |
+
+模型使用 GQA、RMSNorm、QK Norm、普通 RoPE 和 SwiGLU，不启用 YaRN。LM Head 与 Token
+Embedding 共享权重，训练期 MTP 模块不进入部署模型。模型训练、数据清洗、Tokenizer、
+Teacher 数据和偏好优化由独立的 MiniMind-IME 训练仓库维护；本仓库负责 checkpoint 校验、
+部署导出和推理评测。
+
+![MiniMind-IME model architecture](docs/images/minimind-ime-model-architecture.svg)
+
+## 评测结果
+
+冻结评测分为三类：
+
+| Lane | 样本数 | 指标 |
+|---|---:|---:|
+| 中文前缀开放生成（主路径） | 15 | 满三条 100% |
+| 中文候选集语境重排序（辅助回归） | 145 | Acceptable Top-1 76.55%，Pairwise 71.31% |
+| 同拼音候选语境重排序（可选扩展） | 40 | Acceptable Top-1 87.50%，Pairwise 94.35% |
+
+开放生成的参考答案 LCP 用于回归诊断；候选的最终语义接受率需要使用真实用户的
+accept/reject 或候选选择记录评估。
+
+### 可选扩展：同拼音候选语境重排序
+
+<details>
+<summary>查看三组同拼音候选的语境排序结果</summary>
+
+```text
+示例 1 · 工作会议
+中文上下文：项目经理通知大家，下午有个
+用户拼音：huiyi
+词典召回：会议 / 会意 / 悔意 / 回忆
+模型排序：会议 > 会意 > 悔意 > 回忆
+最终结果：项目经理通知大家，下午有个会议
+
+示例 2 · 旧照片
+中文上下文：整理旧照片时，很多童年
+用户拼音：huiyi
+词典召回：会议 / 会意 / 悔意 / 回忆
+模型排序：回忆 > 悔意 > 会议 > 会意
+最终结果：整理旧照片时，很多童年回忆
+
+示例 3 · 情绪表达
+中文上下文：想到刚才说的话，我心里满是
+用户拼音：huiyi
+词典召回：会议 / 会意 / 悔意 / 回忆
+模型排序：悔意 > 会意 > 回忆 > 会议
+最终结果：想到刚才说的话，我心里满是悔意
+```
+
+拼音字符串不直接输入语言模型。上游词典负责召回中文候选，AIOS-IME 使用中文上下文对
+候选进行条件概率排序。以上三组均来自同一冻结评测集，使用同一组 `huiyi` 候选，模型
+仅根据不同中文上下文改变排序。
+
+</details>
+
+## 安装
+
+当前实现需要 CUDA、PyTorch、Transformers 和 FlashInfer。仓库提供了 WSL 环境初始化
+脚本：
 
 ```bash
-pip install torch transformers safetensors flash-attn triton xxhash numpy tqdm
+git clone https://github.com/7155/aios.git
+cd aios
+git switch feat/aios-ime
+
+source scripts/activate_aios.sh
+python -m pip install --no-deps -e .
 ```
 
-### Run the Engine
+## 导出 MiniMind-IME 模型
 
 ```bash
-# Simple generation
-python generate.py --model /path/to/Qwen3-0.6B
-
-# Benchmark throughput
-python benchmark.py --model /path/to/Qwen3-0.6B --num-prompts 32
-
-# Using the Python API
-python -c "
-from aios import LLM, SamplingParams
-llm = LLM('/path/to/Qwen3-0.6B')
-outputs = llm.generate(['Hello world'], SamplingParams(max_tokens=64))
-print(outputs[0]['text'])
-"
+python scripts/export_minimind_ime.py \
+  --checkpoint /path/to/best_validation.pt \
+  --config /path/to/ime_100m_v1.json \
+  --tokenizer-dir /path/to/tokenizer_dir \
+  --output-dir /path/to/minimind-ime-0.1b-aios
 ```
 
-### Follow the Course
+导出器会执行以下检查：
 
-Start from the beginning:
+- Dense/MoE 和 YaRN 配置。
+- Decoder layer 编号与必要权重是否完整。
+- Q/K/V、QK Norm、MLP 和 RMSNorm 权重。
+- Attention heads、KV heads 和 head dim 是否与权重形状一致。
+- SiLU/SwiGLU 激活函数支持。
+- Tied/untied LM Head 与 Embedding 是否一致。
+- MTP 训练辅助权重是否被移除。
 
-1. **[Lesson 0: Introduction](resources/lesson-0-introduction/README.md)**
-2. **[Lesson 1: LLM Basics](resources/lesson-1-llm-basics/README.md)**
-3. Continue through Lessons 2–15
+默认导出 BF16 权重。输出目录非空时需要显式添加 `--force`。
 
-Each lesson includes:
-- **README.md** — Concepts, diagrams, step-by-step guide
-- **run_lessonN.py** — Standalone demo script
-- **requirements.txt** — Dependencies for this lesson
+部署目录包含：
 
-## References
+```text
+model.safetensors
+config.json
+tokenizer.json
+tokenizer_config.json
+aios_manifest.json
+```
 
-This project is inspired by:
-- **[nano-vllm](https://github.com/some/nano-vllm)** (~1,200 lines) — Minimal vLLM clone with clean architecture
-- **[mini-sglang](https://github.com/some/mini-sglang)** (~6,400 lines) — Feature-complete SGLang reference
+## 运行 Top-3
 
-## License
+命令行：
 
-Educational project. See individual files for details.
+```bash
+python scripts/run_aios_ime.py \
+  --model /path/to/minimind-ime-0.1b-aios \
+  --seed 7 \
+  --prefix '没关系，你先忙你的，'
+```
+
+Python API：
+
+```python
+from aios import ImeCompletionEngine, ImeGenerationConfig, LLM
+
+llm = LLM(
+    "/path/to/minimind-ime-0.1b-aios",
+    kv_cache_max_tokens=256,
+    attention_workspace_size=1 * 2**20,
+)
+engine = ImeCompletionEngine(llm)
+
+result = engine.complete(
+    "没关系，你先忙你的，",
+    ImeGenerationConfig(seed=7),
+)
+for candidate in result.candidates:
+    print(candidate.text, candidate.average_logprob)
+```
+
+可选的中文候选集语境重排序：
+
+```python
+result = engine.score_candidates(
+    "项目经理通知大家，下午有个",
+    ["会议", "会意", "悔意", "回忆"],
+    mode="stable",
+)
+print([candidate.text for candidate in result.candidates])
+```
+
+`mode="stable"` 使用整序列 varlen Prefill 复评分，减少 BF16 Prefill/Decode kernel 在
+近平局候选上的排序波动。这里传给模型的是词典召回后的中文候选，不是拼音字符串。
+
+## 候选生成与排序
+
+默认生成参数：
+
+| 参数 | 首轮 | 补采样 |
+|---|---:|---:|
+| 候选数 | 8 | 4 |
+| Temperature | 0.35 | 0.55 |
+| Top-k | 50 | 80 |
+| Top-p | 0.9 | 0.9 |
+| 最大输出 | 12 tokens | 12 tokens |
+
+采样参数用于扩大候选覆盖，排序使用未经过 temperature、Top-k、Top-p 和 stop mask 修改的
+原始模型 logprob：
+
+```text
+average_logprob(c) = (1 / |c|) × Σ log P(c_t | prefix, c_<t)
+base_score(c)       = average_logprob(c) - soft_penalty(c)
+MMR(c)              = base_score(c) - λ × max similarity(c, selected)
+```
+
+候选处理顺序：
+
+1. 过滤空串、助手模板、重复 n-gram、未完成虚词、边界重复和过长候选。
+2. 归一化空白和尾标点，合并显示等价候选。
+3. 对不自然叠词和过短候选应用软惩罚。
+4. 使用字符 bigram Jaccard 相似度执行 MMR Top-3。
+5. 有效候选不足三条时执行一次补采样。
+
+## Prefix KV 与候选 KV
+
+MiniMind-IME 0.1B 每个 token 的 KV 大小为：
+
+```text
+2(K/V) × 14 layers × 4 KV heads × 64 head_dim × 2 bytes = 14 KiB
+```
+
+同一候选组的所有 page-table row 指向同一组 Prefix page，只有生成后的 suffix page 独占。
+候选组完成后立即释放 suffix page，持久 Prefix page 用于下一次按键的 token-LCP 复用。
+
+跨按键实测：
+
+| 输入序列 | 完整 Prefill | 增量 Prefill | 累计加速 |
+|---|---:|---:|---:|
+| 22 字日常短输入 | 7.69 ms/键 | 7.71 ms/键 | 1.00x |
+| 95 字长上下文 | 7.96 ms/键 | 7.53 ms/键 | 1.056x |
+
+## 测试
+
+CPU 与 GPU 测试：
+
+```bash
+AIOS_IME_MODEL=/path/to/minimind-ime-0.1b-aios \
+  pytest -q tests/test_ime.py tests/test_ime_export.py tests/test_ime_gpu.py
+```
+
+当前测试结果：`19 passed`。
+
+性能测试：
+
+```bash
+python benchmark/bench_ime.py \
+  --model /path/to/minimind-ime-0.1b-aios
+```
+
+冻结评测：
+
+```bash
+python scripts/eval_aios_ime_frozen.py \
+  --model /path/to/minimind-ime-0.1b-aios \
+  --eval-dir /path/to/ime_eval_v2_frozen
+```
+
+重建 README 技术图：
+
+```bash
+python scripts/render_aios_ime_figures.py
+```
+
+逐条评测 JSON 可能包含真实输入，默认由 `.gitignore` 排除。公开仓库只保留聚合报告。
+
+## 项目结构
+
+```text
+python/aios/
+├── ime.py                   # CandidateGroup、Top-3、Prefix KV、取消与稳定评分
+├── engine/sample.py         # Top-k/Top-p、原始 logprob、候选独立随机流
+├── models/minimind_ime.py   # MiniMind-IME 模型适配器
+├── attention/flashinfer.py  # varlen Prefill 与 Paged Decode
+├── scheduler/               # 通用 AIOS 调度器
+├── kvcache/                 # KV Cache 存储与分配
+└── layers/                  # Linear、RMSNorm、RoPE、Embedding
+
+scripts/
+├── export_minimind_ime.py   # 部署模型导出
+├── run_aios_ime.py          # Top-3 推理入口
+├── eval_aios_ime_frozen.py  # 冻结评测
+└── render_aios_ime_figures.py # 可重复生成 README 技术图
+
+benchmark/
+├── bench_ime.py
+└── bench_ime_prefix_reuse.py
+
+tests/
+├── test_ime.py
+├── test_ime_export.py
+└── test_ime_gpu.py
+
+docs/images/
+├── aios-ime-runtime-architecture.svg
+├── aios-ime-performance.svg
+└── minimind-ime-model-architecture.svg
+```
+
+## 平台支持
+
+- 运行时仅支持 CUDA。
+- 同拼音候选重排序是可选扩展；项目不包含拼音词典，拼音到中文候选的召回由上游负责。
+- 当前 `Context` 为进程级单实例。
+- CacheManager 尚未实现 KV eviction。
+- CUDA Graph、量化、Tensor Parallel 和 Speculative Decoding尚未接入当前 IME 路径。
+
+## 相关项目
+
+- [MiniMind](https://github.com/jingyaogong/minimind)
+- [ChatLM-mini-Chinese](https://github.com/charent/ChatLM-mini-Chinese)

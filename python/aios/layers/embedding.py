@@ -34,7 +34,7 @@ class LMHead(BaseOP):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         ctx = get_global_ctx()
         batch = ctx.batch
-        if batch.is_prefill:
+        if batch.is_prefill and not batch.return_all_logits:
             indices = batch.attn_metadata.get_last_indices(batch.size)
             x = x[indices].contiguous()
         w = self._tied_embedding.weight if self._tie_word_embeddings else self.weight

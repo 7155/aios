@@ -35,12 +35,12 @@ Usage:
   scripts/download_course_assets.sh [options]
 
 Options:
-  --all                     Prepare default course assets: Qwen3-0.6B + flashinfer + editable AIOS.
+  --all                     Prepare default runtime assets: Qwen3-0.6B + flashinfer + editable AIOS.
   --model REPO_ID           Download/cache a Hugging Face model. Can repeat.
-                            Default course model: Qwen/Qwen3-0.6B
+                            Default runtime model: Qwen/Qwen3-0.6B
   --install-flashinfer      Install flashinfer-python==0.5.3 into the venv.
   --install-cuda-dev        Install CUDA 12.8 nvcc and development headers from NVIDIA apt repo.
-                            Needed by flashinfer JIT kernels used in later lessons.
+                            Needed by FlashInfer JIT kernels.
   --install-deps            Install AIOS Python deps from pyproject.toml into the venv.
                             This may try to install torch/flashinfer again; use carefully.
   --no-install-aios         Do not run pip install --no-deps -e .

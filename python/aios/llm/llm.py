@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import List
+from typing import List, Literal
 
 import torch
 from huggingface_hub import snapshot_download
@@ -29,19 +29,32 @@ class LLM:
         self.dtype = dtype
 
         model_path = _resolve_model_path(model_path)
-        hf_config = AutoConfig.from_pretrained(model_path)
-        config = ModelConfig.from_hf(hf_config)
+        try:
+            hf_config = AutoConfig.from_pretrained(model_path)
+            config = ModelConfig.from_hf(hf_config)
+        except ValueError:
+            config = ModelConfig.from_json(model_path)
+        self.config = config
         self._num_layers = config.num_layers
 
         with torch.device("meta"):
             self.model = create_model(model_path, config)
+        attention_workspace_size = kwargs.get("attention_workspace_size")
+        if attention_workspace_size is not None:
+            if attention_workspace_size <= 0:
+                raise ValueError("attention_workspace_size must be positive")
+            self.model.attn_backend.workspace_size = int(attention_workspace_size)
 
         load_weights(self.model, model_path, self.device, self.dtype)
         self.model.model._rotary_emb.set_device(self.device)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-        self.num_pages = self._determine_num_pages(config, kwargs.get("memory_ratio", 0.9))
+        self.num_pages = self._determine_num_pages(
+            config,
+            kwargs.get("memory_ratio", 0.9),
+            kwargs.get("kv_cache_max_tokens"),
+        )
         self.mha_kv_cache = MHAKVCache(
             num_kv_heads=config.num_kv_heads,
             num_layers=config.num_layers,
@@ -57,7 +70,12 @@ class LLM:
         self.ctx.attn_backend = self.model.attn_backend
         set_global_ctx(self.ctx)
 
-    def _determine_num_pages(self, config: ModelConfig, memory_ratio: float) -> int:
+    def _determine_num_pages(
+        self,
+        config: ModelConfig,
+        memory_ratio: float,
+        kv_cache_max_tokens: int | None,
+    ) -> int:
         torch.cuda.synchronize(self.device)
         torch.cuda.empty_cache()
         free_memory = torch.cuda.mem_get_info(self.device)[0]
@@ -66,6 +84,10 @@ class LLM:
         )
         available_memory = int(memory_ratio * free_memory)
         num_pages = available_memory // cache_per_page
+        if kv_cache_max_tokens is not None:
+            if kv_cache_max_tokens <= 1:
+                raise ValueError("kv_cache_max_tokens must be greater than 1")
+            num_pages = min(num_pages, kv_cache_max_tokens)
         assert num_pages > 1, f"Not enough GPU memory for KV cache (free={free_memory}, per_page={cache_per_page})"
         return num_pages
 
@@ -77,8 +99,10 @@ class LLM:
         max_running_reqs: int | None = None,
         prefill_token_budget: int | None = None,
         debug_scheduler: bool = False,
+        prompt_mode: Literal["chat", "raw"] = "chat",
+        add_bos: bool = True,
     ) -> List[dict]:
-        """Continuous-batching generation with flat varlen prefill (lesson 8)."""
+        """Generate requests with continuous batching and flat varlen prefill."""
         if sampling_params is None:
             sampling_params = SamplingParams()
         if isinstance(sampling_params, SamplingParams):
@@ -89,11 +113,19 @@ class LLM:
         all_input_ids: List[torch.Tensor] = []
         for prompt in prompts:
             if isinstance(prompt, str):
-                messages = [{"role": "user", "content": prompt}]
-                text = self.tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
-                )
-                ids = self.tokenizer.encode(text, return_tensors="pt")[0]
+                if prompt_mode == "chat":
+                    messages = [{"role": "user", "content": prompt}]
+                    text = self.tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
+                    )
+                    ids = self.tokenizer.encode(text, return_tensors="pt")[0]
+                elif prompt_mode == "raw":
+                    token_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
+                    if add_bos and self.tokenizer.bos_token_id is not None:
+                        token_ids = [self.tokenizer.bos_token_id, *token_ids]
+                    ids = torch.tensor(token_ids, dtype=torch.long)
+                else:
+                    raise ValueError(f"Unsupported prompt_mode: {prompt_mode}")
             else:
                 ids = torch.tensor(prompt)
             all_input_ids.append(ids)

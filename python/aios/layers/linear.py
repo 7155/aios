@@ -21,8 +21,8 @@ class LinearQKVMerged(Linear):
     """One packed projection for Q, K, and V.
 
     The packed layout is ``[Q | K | V]`` on the output dimension.  It matches
-    mini-sglang's ``LinearQKVMerged`` layout, while remaining replicated on one
-    GPU until the tensor-parallel lesson.
+    mini-sglang's ``LinearQKVMerged`` layout and currently remains replicated
+    on one GPU.
     """
 
     def __init__(
@@ -40,9 +40,8 @@ class LinearQKVMerged(Linear):
 class LinearColParallelMerged(Linear):
     """One packed column projection for independent output branches.
 
-    For Qwen3 SwiGLU this is ``[gate | up]``.  The name deliberately follows
-    mini-sglang so that the later tensor-parallel lesson can shard it without
-    changing the model-level contract.
+    For Qwen3 SwiGLU this is ``[gate | up]``. The name follows mini-sglang so a
+    future tensor-parallel backend can shard it without changing the model API.
     """
 
     def __init__(
