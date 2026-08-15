@@ -7,6 +7,16 @@ AIOS-IME 是面向本地单用户中文输入法的 CUDA LLM 推理系统。它�
 Prefix KV、候选组批量 Decode、跨按键 Prefix 复用、latest-wins 取消以及 Top-3 多样性选择。
 同拼音候选的语境重排序作为可选扩展，不是模型直接读取拼音生成中文。
 
+## 项目来源
+
+本仓库基于 [wyann22/aios](https://github.com/wyann22/aios) 继续开发。上游项目以课程形式
+从零实现 Qwen3 推理引擎，涵盖权重加载、Prefill/Decode、KV Cache、Paged Cache、批处理、
+Continuous Batching、融合层、CUDA Graph、采样和 Prefix Caching。
+
+本仓库在其推理引擎基础上新增 MiniMind-IME 模型适配、单前缀 CandidateGroup、组内共享
+Prefix KV、跨按键 token-LCP 复用、latest-wins 取消、中文候选后处理以及输入法专项评测。
+原始代码的版权与授权以 [上游仓库](https://github.com/wyann22/aios) 及各文件声明为准。
+
 ![AIOS-IME runtime architecture](docs/images/aios-ime-runtime-architecture.svg)
 
 ## 中文前缀 Top-3 补全
@@ -22,13 +32,13 @@ Top 3：我晚一点给你一个明确答复。
 ```
 
 <p><strong>日常沟通</strong></p>
-<img width="894" alt="中文前缀补全演示：日常沟通" src="docs/images/chinese-prefix-demo-chat.png" />
+<img width="894" alt="中文前缀补全演示：日常沟通" src="docs/images/chinese-prefix-demo-chat-clean.png" />
 
 <p><strong>健康提醒</strong></p>
-<img width="894" alt="中文前缀补全演示：健康提醒" src="docs/images/chinese-prefix-demo-health.png" />
+<img width="894" alt="中文前缀补全演示：健康提醒" src="docs/images/chinese-prefix-demo-health-clean.png" />
 
 <p><strong>工作安排</strong></p>
-<img width="894" alt="中文前缀补全演示：工作安排" src="docs/images/chinese-prefix-demo-work.png" />
+<img width="894" alt="中文前缀补全演示：工作安排" src="docs/images/chinese-prefix-demo-work-clean.png" />
 
 三张演示图沿用真实输入法界面。底部“生成 / 深度”是原有的在线功能入口，这里只替换
 上方中文补全候选。候选内容使用当前部署模型、`seed=7` 和默认 8 路配置实际推理得到。
@@ -172,14 +182,11 @@ Prefill、候选组 Decode、原始 logprob、解码、过滤、去重和 Top-3 
 主路径只处理中文前缀的开放生成。若上游输入法已经通过拼音词典召回一组中文词，运行时
 还可以复用同一个模型对候选执行条件概率重排序；该接口不参与上述中文前缀 Top-3 延迟。
 
-## 相较 vLLM 的输入法专门化
+## 面向输入法场景的推理设计
 
-AIOS-IME 不是 vLLM 的 fork，也不把已有的通用推理能力包装成新发明。vLLM 已支持
-Continuous Batching、PagedAttention、Prefix Caching 和并行采样；可参见
-[vLLM 官方能力概览](https://docs.vllm.ai/en/latest/)、
-[Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
-以及 [`SamplingParams.n`](https://docs.vllm.ai/en/latest/api/vllm/index.html)。本项目的改造点是
-把这些底层思想落到“本地单用户、连续按键、一次返回完整 Top-3”的输入法 workload 上。
+vLLM 面向通用大模型服务，通过跨请求调度、PagedAttention、Prefix Caching 和并行采样
+提高服务器吞吐与 GPU 利用率。本项目聚焦本地单用户候选栏，将优化目标收敛到一次按键的
+完整 Top-3 尾延迟、候选完整率、跨按键缓存复用和峰值显存。
 
 ![vLLM general serving versus AIOS-IME workload](docs/images/aios-ime-vllm-comparison.svg)
 
@@ -196,9 +203,8 @@ Continuous Batching、PagedAttention、Prefix Caching 和并行采样；可参�
 | 显存策略 | 面向不同模型和并发规模配置 cache | 0.1B 本地模型使用 256 个 token page 和 1 MiB workspace 的低显存 profile |
 | 评测 | 通用吞吐、token latency 和服务指标 | 完整 Top-3 墙钟延迟、满三条率、互异率、冻结排序质量和取消后的 KV 回收 |
 
-因此，本项目相较 vLLM 的核心不是替换 Paged KV 或 Flash Attention，而是新增一套输入法
-专用的调度语义、候选生命周期、跨按键缓存策略、中文候选后处理和评测基准。底层机制相似，
-优化函数不同。
+这些目标落实为 CandidateGroup 组内调度、latest-wins 生命周期、精确 token-LCP 缓存复用、
+共享 Prefix page、中文候选后处理和完整 Top-3 评测基准。
 
 ## 推理设计
 
@@ -513,9 +519,9 @@ docs/images/
 ├── aios-ime-prefix-kv.svg
 ├── aios-ime-vllm-comparison.svg
 ├── aios-ime-performance.svg
-├── chinese-prefix-demo-chat.png
-├── chinese-prefix-demo-health.png
-├── chinese-prefix-demo-work.png
+├── chinese-prefix-demo-chat-clean.png
+├── chinese-prefix-demo-health-clean.png
+├── chinese-prefix-demo-work-clean.png
 ├── minimind-ime-model-architecture.svg
 └── minimind-ime-decoder-block.svg
 ```

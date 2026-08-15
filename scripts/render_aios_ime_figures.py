@@ -14,15 +14,15 @@ import html
 from pathlib import Path
 
 
-FONT = "'DejaVu Sans', Helvetica, Arial, sans-serif"
-CJK_FONT = "'Droid Sans Fallback', 'Noto Sans CJK SC', 'Microsoft YaHei', 'PingFang SC', sans-serif"
-MONO = "'Cascadia Mono', 'SFMono-Regular', Consolas, monospace"
+FONT = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif"
+CJK_FONT = "'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Droid Sans Fallback', sans-serif"
+MONO = "'Cascadia Mono', 'SFMono-Regular', 'Roboto Mono', Consolas, monospace"
 
 COLORS = {
-    "background": "#f8fafc",
+    "background": "#f6f8fc",
     "panel": "#ffffff",
     "ink": "#172033",
-    "muted": "#64748b",
+    "muted": "#52627a",
     "line": "#607d8b",
     "border": "#455a64",
     "grid": "#dbe4ee",
@@ -52,7 +52,8 @@ class Svg:
             (
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
                 f'height="{height}" viewBox="0 0 {width} {height}" '
-                'role="img" aria-labelledby="title desc">'
+                'role="img" aria-labelledby="title desc" '
+                'text-rendering="geometricPrecision" shape-rendering="geometricPrecision">'
             ),
             f'<title id="title">{html.escape(title)}</title>',
             '<desc id="desc">Deterministically rendered AIOS-IME technical diagram.</desc>',
@@ -173,7 +174,7 @@ class Svg:
         y: float,
         value: str,
         *,
-        size: float = 18,
+        size: float = 20,
         fill: str = COLORS["ink"],
         weight: int = 500,
         anchor: str = "middle",
@@ -181,7 +182,7 @@ class Svg:
         line_height: float | None = None,
     ) -> None:
         lines = value.splitlines() or [""]
-        step = line_height or size * 1.35
+        step = line_height or size * 1.30
         first_y = y - (len(lines) - 1) * step / 2
         def line_family(line: str) -> str:
             if family != FONT:
@@ -205,9 +206,33 @@ class Svg:
         path.write_text("\n".join([*self.parts, "</svg>", ""]), encoding="utf-8")
 
 
+def _line_units(value: str) -> float:
+    """Estimate rendered width in em units for responsive SVG labels."""
+    units = 0.0
+    for character in value:
+        if "\u3400" <= character <= "\u9fff":
+            units += 1.0
+        elif character.isspace():
+            units += 0.34
+        elif character in "·.,:;/()[]×+-→↓":
+            units += 0.45
+        elif character.isupper() or character.isdigit():
+            units += 0.64
+        else:
+            units += 0.56
+    return units
+
+
+def fit_text_size(value: str, available_width: float, desired: float, minimum: float) -> float:
+    longest_line = max(value.splitlines() or [""], key=_line_units)
+    units = max(_line_units(longest_line), 1.0)
+    return max(minimum, min(desired, available_width / units))
+
+
 def title(svg: Svg, heading: str, subtitle: str) -> None:
-    svg.text(48, 48, heading, size=36, weight=700, anchor="start", fill="#1e3a5f")
-    svg.text(48, 88, subtitle, size=21, weight=400, anchor="start", fill=COLORS["muted"])
+    svg.rect(38, 22, 7, 72, fill=COLORS["blue"], stroke="none", stroke_width=0, rx=4)
+    svg.text(62, 46, heading, size=37, weight=750, anchor="start", fill="#17365d")
+    svg.text(62, 88, subtitle, size=22, weight=500, anchor="start", fill=COLORS["muted"])
 
 
 def module(
@@ -224,8 +249,28 @@ def module(
     heading_color: str = COLORS["ink"],
 ) -> None:
     svg.rect(x, y, width, height, fill=fill, stroke=stroke, shadow=True)
-    svg.text(x + width / 2, y + height * 0.38, heading, size=22, weight=700, fill=heading_color)
-    svg.text(x + width / 2, y + height * 0.72, detail, size=18, weight=400, fill=COLORS["muted"])
+    heading_desired = min(24.0, 18.0 + height / 30.0)
+    detail_desired = min(19.5, 14.0 + height / 35.0)
+    heading_size = fit_text_size(heading, width - 28, heading_desired, 18.0)
+    detail_size = fit_text_size(detail, width - 24, detail_desired, 14.0)
+    svg.text(
+        x + width / 2,
+        y + height * 0.37,
+        heading,
+        size=heading_size,
+        weight=700,
+        fill=heading_color,
+        line_height=heading_size * 1.18,
+    )
+    svg.text(
+        x + width / 2,
+        y + height * 0.72,
+        detail,
+        size=detail_size,
+        weight=500,
+        fill=COLORS["muted"],
+        line_height=detail_size * 1.22,
+    )
 
 
 def render_runtime(path: Path) -> None:
@@ -296,7 +341,7 @@ def render_candidate_group(path: Path) -> None:
             stroke_width=1.2,
             rx=6,
         )
-        svg.text(group_x + 47, row_y + 14, str(row + 1), size=18, weight=700, fill=COLORS["blue"])
+        svg.text(group_x + 47, row_y + 14, str(row + 1), size=20, weight=700, fill=COLORS["blue"])
         for token in range(8):
             token_x = group_x + 82 + token * 34
             svg.rect(
@@ -317,7 +362,7 @@ def render_candidate_group(path: Path) -> None:
         220,
         210,
         170,
-        "Filter · Dedup · MMR",
+        "Filter · Dedup\nMMR",
         "中文合法性\n显示去重\n原始分数与多样性",
         fill=COLORS["orange_fill"],
         stroke=COLORS["orange"],
@@ -335,7 +380,7 @@ def render_candidate_group(path: Path) -> None:
     for index, candidate in enumerate(candidates):
         card_y = top_y + 75 + index * 82
         svg.rect(top_x + 18, card_y, top_w - 36, 66, fill="#ffffff", stroke=COLORS["green"], rx=8)
-        svg.text(top_x + top_w / 2, card_y + 34, candidate, size=20, weight=600)
+        svg.text(top_x + top_w / 2, card_y + 34, candidate, size=22, weight=650)
     svg.line(1020, 305, top_x, 305, arrow=True)
 
     svg.text(700, 615, "结束分支立即离开批次 · 首轮生成八路 · 有效且互异候选不足三条时才补四路", size=22, weight=500, fill=COLORS["muted"])
@@ -359,7 +404,7 @@ def render_prefix_kv(path: Path) -> None:
     for index, value in enumerate(old_tokens):
         x = token_x + index * (token_w + token_gap)
         svg.rect(x, 160, token_w, 52, fill=COLORS["blue_fill"], stroke=COLORS["blue"], rx=9)
-        svg.text(x + token_w / 2, 187, value, size=19, weight=700, family=MONO)
+        svg.text(x + token_w / 2, 187, value, size=21, weight=700, family=MONO)
     for index, value in enumerate(new_tokens):
         x = token_x + index * (token_w + token_gap)
         stable = index < 6
@@ -372,10 +417,10 @@ def render_prefix_kv(path: Path) -> None:
             stroke=COLORS["green"] if stable else COLORS["orange"],
             rx=9,
         )
-        svg.text(x + token_w / 2, 337, value, size=19, weight=700, family=MONO)
+        svg.text(x + token_w / 2, 337, value, size=21, weight=700, family=MONO)
 
-    svg.text(235, 187, "token IDs", size=19, weight=600, fill=COLORS["muted"])
-    svg.text(235, 337, "token IDs", size=19, weight=600, fill=COLORS["muted"])
+    svg.text(235, 187, "token IDs", size=21, weight=650, fill=COLORS["muted"])
+    svg.text(235, 337, "token IDs", size=21, weight=650, fill=COLORS["muted"])
     module(svg, 180, 405, 300, 90, "token-LCP = 6", "Reuse first 6 stable tokens", fill=COLORS["green_fill"], stroke=COLORS["green"])
     module(svg, 555, 405, 385, 90, "Tokenizer", "尾部发生重切\n3035 + 297  →  3559 + …", fill=COLORS["orange_fill"], stroke=COLORS["orange"])
     module(svg, 1015, 405, 300, 90, "重新计算尾部", "不按字符长度复用错误缓存", fill=COLORS["violet_fill"], stroke=COLORS["violet"])
@@ -421,7 +466,7 @@ def render_vllm_comparison(path: Path) -> None:
     svg.line(1010, 420, 1085, 420, arrow=True)
     module(svg, 900, 490, 300, 90, "优化目标", "完整三条候选尾延迟\n显存与正确性", fill=COLORS["green_fill"], stroke=COLORS["green"])
 
-    svg.text(700, 635, "Paged KV · Prefix Cache · Parallel Sampling are shared primitives; scheduling, lifecycle, ranking, and metrics differ.", size=21, weight=500, fill=COLORS["muted"])
+    svg.text(700, 635, "Paged KV · Prefix Cache · Parallel Sampling are shared primitives; scheduling, lifecycle, ranking, and metrics differ.", size=23, weight=500, fill=COLORS["muted"])
     svg.save(path)
 
 
@@ -437,10 +482,10 @@ def bar(
     label: str,
     value_label: str,
 ) -> None:
-    svg.text(x - 22, y + 14, label, size=20, weight=600, anchor="end")
+    svg.text(x - 22, y + 14, label, size=22, weight=650, anchor="end")
     svg.rect(x, y, width, 28, fill="#e2e8f0", stroke="none", stroke_width=0, rx=6)
     svg.rect(x, y, width * value / maximum, 28, fill=color, stroke="none", stroke_width=0, rx=6)
-    svg.text(x + width + 18, y + 15, value_label, size=20, weight=700, anchor="start", fill=color)
+    svg.text(x + width + 18, y + 15, value_label, size=22, weight=700, anchor="start", fill=color)
 
 
 def render_performance(path: Path) -> None:
@@ -457,7 +502,7 @@ def render_performance(path: Path) -> None:
     for tick in (0, 100, 200, 300):
         tick_x = plot_x + plot_w * tick / maximum
         svg.line(tick_x, 165, tick_x, 530, color=COLORS["grid"], width=1.2, dash="4 6")
-        svg.text(tick_x, 150, f"{tick} ms", size=17, weight=400, fill=COLORS["muted"])
+        svg.text(tick_x, 150, f"{tick} ms", size=19, weight=500, fill=COLORS["muted"])
 
     svg.text(90, 235, "p50", size=36, weight=700, anchor="start", fill=COLORS["violet"])
     bar(
@@ -507,8 +552,8 @@ def render_performance(path: Path) -> None:
         label="AIOS-IME",
         value_label="109.97 ms",
     )
-    svg.text(1090, 285, "Complete Top-3 wall-clock latency", size=18, weight=400, anchor="end", fill=COLORS["muted"])
-    svg.text(1090, 310, "Excludes model loading and first JIT", size=18, weight=400, anchor="end", fill=COLORS["muted"])
+    svg.text(1090, 285, "Complete Top-3 wall-clock latency", size=20, weight=500, anchor="end", fill=COLORS["muted"])
+    svg.text(1090, 310, "Excludes model loading and first JIT", size=20, weight=500, anchor="end", fill=COLORS["muted"])
 
     module(
         svg,
@@ -610,15 +655,15 @@ def render_decoder_block(path: Path) -> None:
         width=2.5,
         arrow=True,
     )
-    svg.text(420, 155, "attention residual", size=21, weight=600, fill=COLORS["green"])
+    svg.text(420, 155, "attention residual", size=23, weight=650, fill=COLORS["green"])
     svg.path(
         f"M 745 {flow_y + 120} C 745 490, 1355 490, 1355 {flow_y + 120}",
         color=COLORS["green"],
         width=2.5,
         arrow=True,
     )
-    svg.text(1050, 505, "MLP residual", size=21, weight=600, fill=COLORS["green"])
-    svg.text(700, 555, "Training-only MTP weights are stripped during export.", size=21, weight=500, fill=COLORS["muted"])
+    svg.text(1050, 505, "MLP residual", size=23, weight=650, fill=COLORS["green"])
+    svg.text(700, 555, "Training-only MTP weights are stripped during export.", size=23, weight=500, fill=COLORS["muted"])
     svg.save(path)
 
 
