@@ -20,6 +20,7 @@ Top 1：我晚点给你一个明确答复。
 Top 2：我晚点给你发消息。
 Top 3：我晚一点给你一个明确答复。
 ```
+<img width="447" height="253" alt="image" src="https://github.com/user-attachments/assets/bff01663-844a-4019-a88c-04813f294339" />
 
 <img width="894" alt="MiniMind-IME 0.1B 中文前缀 Top-3 候选栏" src="docs/images/aios-ime-ui-current.png" />
 
