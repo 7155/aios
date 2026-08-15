@@ -22,6 +22,7 @@ Top 3：我晚一点给你一个明确答复。
 ```
 
 <img width="894" alt="MiniMind-IME 0.1B 中文前缀 Top-3 候选栏" src="docs/images/aios-ime-ui-current.png" />
+
 该示例使用当前部署的 MiniMind-IME 0.1B、`seed=7` 和默认 8 路候选配置实际推理得到。
 一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
 logprob 排序和字符 bigram MMR 选择。
@@ -29,10 +30,7 @@ logprob 排序和字符 bigram MMR 选择。
 ### 多场景补全示例
 
 以下结果均由当前部署模型和默认推理配置实际生成。除购物示例使用 `seed=13` 外，其余
-示例均使用 `seed=7`。这些样例用于展示模型能力和候选形态；总体效果由冻结评测约束，
-最终仍需真实用户选择率验证。
-<img width="558" height="218" alt="image" src="https://github.com/user-attachments/assets/2ec2ae0b-a9a6-4592-9314-8a67f57e9e0f" />
-
+示例均使用 `seed=7`。
 
 #### 通勤与日常沟通
 
@@ -265,9 +263,6 @@ Teacher 数据和偏好优化由独立的 MiniMind-IME 训练仓库维护；本�
 | 中文前缀开放生成（主路径） | 15 | 满三条 100% |
 | 中文候选集语境重排序（辅助回归） | 145 | Acceptable Top-1 76.55%，Pairwise 71.31% |
 | 同拼音候选语境重排序（可选扩展） | 40 | Acceptable Top-1 87.50%，Pairwise 94.35% |
-
-开放生成的参考答案 LCP 用于回归诊断；候选的最终语义接受率需要使用真实用户的
-accept/reject 或候选选择记录评估。
 
 ### 可选扩展：同拼音候选语境重排序
 
