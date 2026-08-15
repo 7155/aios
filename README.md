@@ -22,7 +22,6 @@ Top 3：我晚一点给你一个明确答复。
 ```
 
 <img width="894" alt="MiniMind-IME 0.1B 中文前缀 Top-3 候选栏" src="docs/images/aios-ime-ui-current.png" />
-
 该示例使用当前部署的 MiniMind-IME 0.1B、`seed=7` 和默认 8 路候选配置实际推理得到。
 一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
 logprob 排序和字符 bigram MMR 选择。
@@ -32,6 +31,8 @@ logprob 排序和字符 bigram MMR 选择。
 以下结果均由当前部署模型和默认推理配置实际生成。除购物示例使用 `seed=13` 外，其余
 示例均使用 `seed=7`。这些样例用于展示模型能力和候选形态；总体效果由冻结评测约束，
 最终仍需真实用户选择率验证。
+<img width="558" height="218" alt="image" src="https://github.com/user-attachments/assets/2ec2ae0b-a9a6-4592-9314-8a67f57e9e0f" />
+
 
 #### 通勤与日常沟通
 
