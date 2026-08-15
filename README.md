@@ -20,6 +20,7 @@ Top 1：我晚点给你一个明确答复。
 Top 2：我晚点给你发消息。
 Top 3：我晚一点给你一个明确答复。
 ```
+<img width="447" height="253" alt="image" src="https://github.com/user-attachments/assets/bff01663-844a-4019-a88c-04813f294339" />
 
 该示例使用当前部署的 MiniMind-IME 0.1B、`seed=7` 和默认 8 路候选配置实际推理得到。
 一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
