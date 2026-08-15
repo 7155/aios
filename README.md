@@ -21,9 +21,17 @@ Top 2：我晚点给你发消息。
 Top 3：我晚一点给你一个明确答复。
 ```
 
-<img width="894" alt="MiniMind-IME 0.1B 中文前缀 Top-3 候选栏" src="docs/images/aios-ime-ui-current.png" />
+<p><strong>日常沟通</strong></p>
+<img width="894" alt="中文前缀补全演示：日常沟通" src="docs/images/chinese-prefix-demo-chat.png" />
 
-该示例使用当前部署的 MiniMind-IME 0.1B、`seed=7` 和默认 8 路候选配置实际推理得到。
+<p><strong>健康提醒</strong></p>
+<img width="894" alt="中文前缀补全演示：健康提醒" src="docs/images/chinese-prefix-demo-health.png" />
+
+<p><strong>工作安排</strong></p>
+<img width="894" alt="中文前缀补全演示：工作安排" src="docs/images/chinese-prefix-demo-work.png" />
+
+三张演示图沿用真实输入法界面。底部“生成 / 深度”是原有的在线功能入口，这里只替换
+上方中文补全候选。候选内容使用当前部署模型、`seed=7` 和默认 8 路配置实际推理得到。
 一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
 logprob 排序和字符 bigram MMR 选择。
 
@@ -501,11 +509,13 @@ tests/
 
 docs/images/
 ├── aios-ime-runtime-architecture.svg
-├── aios-ime-ui-current.png
 ├── aios-ime-candidate-group.svg
 ├── aios-ime-prefix-kv.svg
 ├── aios-ime-vllm-comparison.svg
 ├── aios-ime-performance.svg
+├── chinese-prefix-demo-chat.png
+├── chinese-prefix-demo-health.png
+├── chinese-prefix-demo-work.png
 ├── minimind-ime-model-architecture.svg
 └── minimind-ime-decoder-block.svg
 ```
