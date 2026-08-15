@@ -34,93 +34,73 @@ Top 3：我晚一点给你一个明确答复。
 <p><strong>日常沟通</strong></p>
 <img width="894" alt="中文前缀补全演示：日常沟通" src="docs/images/chinese-prefix-demo-chat-clean.png" />
 
-<p><strong>健康提醒</strong></p>
-<img width="894" alt="中文前缀补全演示：健康提醒" src="docs/images/chinese-prefix-demo-health-clean.png" />
+<p><strong>阶段收尾</strong></p>
+<img width="894" alt="中文前缀补全演示：阶段收尾" src="docs/images/chinese-prefix-demo-wrapup-v2.png" />
 
-<p><strong>工作安排</strong></p>
-<img width="894" alt="中文前缀补全演示：工作安排" src="docs/images/chinese-prefix-demo-work-clean.png" />
+<p><strong>数据质检</strong></p>
+<img width="894" alt="中文前缀补全演示：数据质检" src="docs/images/chinese-prefix-demo-data-quality-v2.png" />
 
 三张演示图沿用真实输入法界面。底部“生成 / 深度”是原有的在线功能入口，这里只替换
-上方中文补全候选。候选内容使用当前部署模型、`seed=7` 和默认 8 路配置实际推理得到。
-一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文过滤、显示去重、原始
-logprob 排序和字符 bigram MMR 选择。
+上方中文补全候选。日常沟通和阶段收尾使用 `seed=7`，数据质检使用 `seed=42`；其余参数
+均为默认 8 路配置。一次 Prefix Prefill 后，多路后缀共享 Prefix KV；最终结果经过中文
+过滤、显示去重、原始 logprob 排序和字符 bigram MMR 选择。
 
-### 多场景补全示例
+### 推理效果示例
 
-以下结果均由当前部署模型和默认推理配置实际生成。除购物示例使用 `seed=13` 外，其余
-示例均使用 `seed=7`。
+以下 Top-3 均由当前部署的 MiniMind-IME 0.1B 和默认推理配置实际生成，候选文字保持原样。
+固定配置与逐条结果见[推理记录](reports/aios_ime_readme_examples_20260815.md)。
 
-#### 通勤与日常沟通
-
-```text
-输入前缀：公交还有两站才到，我先沿着导航慢慢走，等我走近
-
-Top 1：再给你发消息。
-Top 2：再联系。
-Top 3：一点再给你发消息。
-```
+#### 阶段收尾（`seed=7`）
 
 ```text
-输入前缀：我刚从公司楼里出来，我改走地铁会更稳妥
+输入前缀：今天的任务先做到这里，剩下的
 
-Top 1：一点，下班后直接过去。
-Top 2：，你不用一直等我。
-Top 3：，下班路上顺便买杯咖啡。
+Top 1：事情明天再补。
+Top 2：明天早上还得继续。
+Top 3：事情明天再聊。
 ```
 
-#### 健康与运动
+#### 数据质检（`seed=42`）
 
 ```text
-输入前缀：最近跑步时总是开始得太快，前十分钟容易把自己累到，前面刻意把速度放慢，后面会更
+输入前缀：监督数据还不完整，需要
 
-Top 1：容易坚持。
-Top 2：自然。
-Top 3：好。
+Top 1：再检查一次。
+Top 2：再整理一版。
+Top 3：再看一次记录。
 ```
+
+#### 去重检查（`seed=1`）
 
 ```text
-输入前缀：我把瑜伽垫重新铺出来了，先把肩膀和后背放松一下，动作
+输入前缀：先把重复数据删掉，再
 
-Top 1：轻一点再放慢一点。
-Top 2：轻一点也更容易坚持。
-Top 3：轻一点不要硬撑。
+Top 1：重新对照原始记录做一次检查。
+Top 2：把结果保存下来。
+Top 3：补一句简单说明。
 ```
+
+#### 问题跟踪（`seed=20260814`）
 
 ```text
-输入前缀：早上起来鼻子有点堵，把不着急的事情放到明天，身体状态不
+输入前缀：这个问题我先记录下来，
 
-Top 1：好的时候再看会更清楚。
-Top 2：好就早点休息。
-Top 3：好就早点睡觉。
+Top 1：明天再看一眼有没有变化。
+Top 2：明天再看一眼是否稳定。
+Top 3：明天再看一次。
 ```
 
-#### 工作与生活安排
+#### 工作沟通（`seed=1`）
 
 ```text
-输入前缀：月底前还有两笔费用要确认，金额不大但最好及时处理，今晚再
+输入前缀：没关系，你先忙你的，
 
-Top 1：确认一次。
-Top 2：核对金额。
-Top 3：核对一次费用。
+Top 1：我晚一点给你一个明确答复。
+Top 2：我明天再给你发消息。
+Top 3：我回去以后再认真回复你。
 ```
 
-```text
-输入前缀：这几天晚上总忍不住看手机，屏幕看久了脑子更清醒，我把明天要带的东西先准备好，出门时
-
-Top 1：直接放进包里。
-Top 2：直接拿，不用临时找东西。
-Top 3：不用再找东西。
-```
-
-```text
-输入前缀：这次买东西前最好看一下预算，先放两天再决定，真正需要
-
-Top 1：时再下单。
-Top 2：的东西先放两天。
-Top 3：的那件先放进购物车。
-```
-
-#### 回忆与内容整理
+#### 朋友回忆（`seed=1`）
 
 ```text
 输入前缀：刚才我翻到我们以前一起拍的照片，有几张现在看还是挺有意思
@@ -128,14 +108,6 @@ Top 3：的那件先放进购物车。
 Top 1：，下次见面的时候一起看看。
 Top 2：，下次见面一起看看。
 Top 3：，下次见面时一起看看。
-```
-
-```text
-输入前缀：刚才我整理完去年拍的旅行照片，很多画面现在看还是很有意思，按时间和地点分成几个文件夹，之后找
-
-Top 1：起来会方便很多。
-Top 2：回来会更容易找到。
-Top 3：回来会方便很多。
 ```
 
 ## 性能
@@ -520,8 +492,8 @@ docs/images/
 ├── aios-ime-vllm-comparison.svg
 ├── aios-ime-performance.svg
 ├── chinese-prefix-demo-chat-clean.png
-├── chinese-prefix-demo-health-clean.png
-├── chinese-prefix-demo-work-clean.png
+├── chinese-prefix-demo-wrapup-v2.png
+├── chinese-prefix-demo-data-quality-v2.png
 ├── minimind-ime-model-architecture.svg
 └── minimind-ime-decoder-block.svg
 ```
