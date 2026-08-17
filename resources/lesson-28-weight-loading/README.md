@@ -52,7 +52,7 @@ for target_name in model.state_dict():
 
 好处：
 
-- 缺少目标 Tensor立即报错；
+- 缺少目标 Tensor 立即报错；
 - 不把 checkpoint 中无关训练状态加载进来；
 - Fused Module 的目标名字由当前 Runtime 结构定义。
 
@@ -187,13 +187,27 @@ python resources/lesson-28-weight-loading/run_lesson28.py
 
 不够。顺序若从 `[Q,K,V]` 错成 `[K,Q,V]`，Shape 仍正确但结果错误；Packing Mapping 必须有测试/对照。
 
-## 12. 面试追问
+## 12. 检验问题与参考答案
 
-1. 为什么 QKV 沿 `dim=0` 拼接，而不是 `dim=1`？
-2. Fused Packing 节省的是参数量还是运行开销？
-3. `BaseOP` 命名约定相对 `nn.Module` 有什么脆弱点？
-4. Sharded Safetensors 怎样避免重复 Key？
-5. 量化权重接入时，Packing 应发生在量化前还是后？取决于什么？
+### 问题 1：为什么 QKV 沿 `dim=0` 拼接，而不是 `dim=1`？
+
+**参考答案：** PyTorch Linear 权重 Shape 是 `[out_features, in_features]`。Q/K/V 共享同一个输入维 `hidden_size`，区别在各自输出通道数，因此要沿 `out_features` 的第 0 维拼接。若沿 `dim=1`，等于把输入维拼长，要求输入也跟着扩展，已经不是三次共享输入 Linear 的等价变换。
+
+### 问题 2：Fused Packing 节省的是参数量还是运行开销？
+
+**参考答案：** 参数量基本不变，只是把同样的 Q/K/V 或 Gate/Up 权重重新排成一张大矩阵。收益主要来自减少 GEMM/Kernel Launch 次数、重复读取同一输入 Hidden 的带宽，以及更适合融合算子的内存布局。
+
+### 问题 3：`BaseOP` 命名约定相对 `nn.Module` 有什么脆弱点？
+
+**参考答案：** 它依赖“公开 Tensor=权重、下划线字段=非权重”的约定，没有 PyTorch Parameter/Module 的注册机制保护。开发者如果给一个真正需要保存的权重加了下划线，或把运行时 Tensor 暴露为公开字段，都可能让 State Dict 漏项/多项，因此更依赖测试和编码纪律。
+
+### 问题 4：Sharded Safetensors 怎样避免重复 Key？
+
+**参考答案：** Loader 先遍历所有 shard，建立 `tensor_name → file_path` 索引；同一个 Tensor 名如果在两个 shard 同时出现就立即报 Duplicate Key，而不是采用“后读覆盖前读”。这样能避免 checkpoint 打包错误被静默吞掉。
+
+### 问题 5：量化权重接入时，Packing 应发生在量化前还是后？取决于什么？
+
+**参考答案：** 取决于量化格式和 Kernel 期望布局。如果量化是逐输出通道、各 Q/K/V 使用兼容 Scale，可能先量化后按 Kernel 格式打包；若量化算法需要整张 Fused 矩阵共同计算 Group/Scale，则应先 Packing 再量化。不能只拼 Int4 字节而忽略对应 Scale/Zero-point 的布局。
 
 ## 13. 一句话复述
 
