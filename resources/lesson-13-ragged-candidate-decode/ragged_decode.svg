@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#315c57"/></marker>
+    <style>
+      .title{font:700 28px system-ui,sans-serif;fill:#17202a}.h{font:700 18px system-ui,sans-serif;fill:#17202a}.t{font:15px system-ui,sans-serif;fill:#263238}.small{font:13px system-ui,sans-serif;fill:#455a64}.box{fill:#f7faf9;stroke:#315c57;stroke-width:2;rx:12}.done{fill:#edf4ee;stroke:#718b76;stroke-width:2;rx:10}.active{fill:#eef4fa;stroke:#496a89;stroke-width:2;rx:10}.line{stroke:#315c57;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <text x="45" y="48" class="title">Ragged Candidate Decode：结束的分支退出，存活分支保持自己的随机流</text>
+  <text x="45" y="83" class="small">观察重点：active rows 的物理顺序会变化，但随机数由 (candidate_seed, token_step) 定位，候选语义不随压缩漂移。</text>
+  <rect x="45" y="120" width="180" height="430" class="box"/>
+  <text x="70" y="155" class="h">Step 0 · 8 rows</text>
+  <g class="t"><text x="75" y="195">row 0 · seed 101</text><text x="75" y="230">row 1 · seed 202</text><text x="75" y="265">row 2 · seed 303</text><text x="75" y="300">row 3 · seed 404</text><text x="75" y="335">row 4 · seed 505</text><text x="75" y="370">row 5 · seed 606</text><text x="75" y="405">row 6 · seed 707</text><text x="75" y="440">row 7 · seed 808</text></g>
+  <text x="70" y="505" class="small">一次 Prefix logits expand</text><text x="70" y="527" class="small">八个独立 first-token sample</text>
+  <line x1="225" y1="335" x2="305" y2="335" class="line"/>
+  <rect x="310" y="120" width="220" height="430" class="box"/>
+  <text x="335" y="155" class="h">Step 1 · 5 survive</text>
+  <rect x="335" y="180" width="170" height="42" class="done"/><text x="350" y="207" class="t">seed 101 → EOS</text>
+  <rect x="335" y="235" width="170" height="42" class="active"/><text x="350" y="262" class="t">seed 202 → active</text>
+  <rect x="335" y="290" width="170" height="42" class="done"/><text x="350" y="317" class="t">seed 303 → 。</text>
+  <rect x="335" y="345" width="170" height="42" class="active"/><text x="350" y="372" class="t">seed 404 → active</text>
+  <rect x="335" y="400" width="170" height="42" class="active"/><text x="350" y="427" class="t">seed 505 → active</text>
+  <text x="335" y="480" class="small">active_local 只保留 survivors</text><text x="335" y="503" class="small">完成 row 不再申请 suffix page</text>
+  <line x1="530" y1="335" x2="610" y2="335" class="line"/>
+  <rect x="615" y="120" width="235" height="430" class="box"/>
+  <text x="640" y="155" class="h">Step 2 · compact rows</text>
+  <text x="640" y="195" class="t">physical row 0 ← seed 202</text><text x="640" y="235" class="t">physical row 1 ← seed 404</text><text x="640" y="275" class="t">physical row 2 ← seed 505</text>
+  <text x="640" y="330" class="small">错误：从全局 RNG 顺序取数</text><text x="640" y="355" class="small">→ 前面 row 消失后，后面候选换随机数</text>
+  <text x="640" y="405" class="small">正确：uniform[seed, token_step]</text><text x="640" y="430" class="small">→ row 压缩只改变计算布局</text><text x="640" y="455" class="small">→ 不改变候选自己的随机轨迹</text>
+  <line x1="850" y1="335" x2="930" y2="335" class="line"/>
+  <rect x="935" y="165" width="220" height="335" class="box"/>
+  <text x="960" y="205" class="h">结果</text><text x="960" y="250" class="t">更少 row-step</text><text x="960" y="285" class="t">更少 suffix KV page</text><text x="960" y="320" class="t">候选结果可复现</text><text x="960" y="355" class="t">完成分支立即退出</text><text x="960" y="410" class="small">性能优化不能偷偷改变</text><text x="960" y="435" class="small">seed 对应的候选语义。</text>
+</svg>
