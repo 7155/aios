@@ -65,15 +65,15 @@ Tokenizer 与词表完全对应
 
 首先检查：
 
-\[
+```math
 12 \times 64 = 768
-\]
+```
 
 K/V Projection 输出宽度：
 
-\[
+```math
 4 \times 64 = 256
-\]
+```
 
 因此典型权重形状应是：
 
@@ -179,22 +179,14 @@ Hash 证明的是**字节完整性和身份**，不是模型质量或许可证�
 
 当前 Page Size 为 1 token。一个 token 的 K/V 字节：
 
-\[
-2(K/V)
-\times14\text{ layers}
-\times4\text{ KV heads}
-\times64\text{ head dim}
-\times2\text{ bytes(BF16)}
-\]
-
-\[
-= 14,336\text{ bytes} = 14\text{ KiB}
-\]
+```math
+2 \times 14 \times 4 \times 64 \times 2 = 14336\text{ bytes} = 14\text{ KiB}
+```
 
 因此低显存 profile：
 
-```text
-256 token pages × 14 KiB ≈ 3.5 MiB KV storage
+```math
+256 \times 14\text{ KiB} \approx 3.5\text{ MiB}
 ```
 
 注意这只是 KV 本体，不包含 Page Table、FlashInfer Workspace、临时激活和 allocator overhead。
@@ -281,13 +273,27 @@ python resources/lesson-11-minimind-ime-adapter/run_lesson11.py
 pytest -q tests/test_ime_export.py
 ```
 
-## 12. 面试追问
+## 12. 检验问题与参考答案
 
-1. 为什么模型适配类可以很薄，但 Exporter 不能很薄？
-2. `hidden_size` 与 `head_dim` 对不上时，为什么不能自动向下取整？
-3. Tied Embedding 节省了什么，又需要验证什么？
-4. 为什么 `state_dict` Shape 全对，Tokenizer 错了仍可能无法被单元测试发现？
-5. `meta` device 对模型加载峰值内存有什么意义？
+### 问题 1：为什么模型适配类可以很薄，但 Exporter 不能很薄？
+
+**参考答案：** Adapter 只表达“运行时使用哪套算子实现”，而 Exporter 必须证明训练 checkpoint 与这套算子在结构上真的兼容。它需要检查层数、Q/K/V Shape、Head 数、Norm、激活、tied embedding、MTP 等不变量。否则模型可能能够加载甚至输出文本，但实际权重语义已经错位。
+
+### 问题 2：`hidden_size` 与 `num_attention_heads × head_dim` 对不上时，为什么不能自动向下取整？
+
+**参考答案：** 因为 Q 向量要从 `[hidden_size]` 精确 reshape 成 `[num_heads, head_dim]`。这不是近似配置，而是 Tensor 布局合同。如果乘积不等于 hidden size，说明配置或权重至少一方错误；自动取整只会把结构错误隐藏起来。
+
+### 问题 3：Tied Embedding 节省了什么，又需要验证什么？
+
+**参考答案：** Tied Embedding 让输入词嵌入矩阵和输出 LM Head 共用同一组权重，从而省掉一张 `vocab_size × hidden_size` 矩阵。但若 checkpoint 同时保存了两张矩阵，必须验证它们真的相同；否则不能因为配置写了 `tie_word_embeddings=true` 就静默丢掉其中一张。
+
+### 问题 4：为什么 `state_dict` Shape 全对，Tokenizer 错了仍可能无法被 Shape 测试发现？
+
+**参考答案：** Shape 只能证明词表大小等维度一致，不能证明 Token ID 的语义映射一致。两个 Tokenizer 都可能有 16384 个 Token，但 ID 1234 对应不同 Piece。模型仍能运行，却会把错误的词向量当成输入、错误的 ID 当成输出，因此 Tokenizer 文件和 Hash 必须属于部署合同的一部分。
+
+### 问题 5：`meta` device 对模型加载峰值内存有什么意义？
+
+**参考答案：** `meta` device 先只创建参数 Shape 和模块结构，不分配真实参数存储。随后 Loader 直接把 checkpoint Tensor 放到目标 device/dtype。这样避免先创建一份随机初始化的完整模型，再加载第二份真实权重造成短时间双份内存。
 
 ## 13. 一句话复述
 
