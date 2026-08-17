@@ -149,7 +149,7 @@ table_manager.free(slot)
 cache_manager._free(used_pages)
 ```
 
-如果先让新请求复用 Slot 并覆写 Page Table，再读取 used pages，旧请求的物理 Page 身份可能丢失。当前代码在同一同步流程内先取 View/索引，再归还 Slot；更强并发下还需明确是否 clone/同步。
+如果先让新请求复用 Slot 并覆写 Page Table，再读取 used pages，旧请求的物理 Page 身份可能丢失。当前代码在同一同步流程内先取旧映射，再归还 Slot；更强并发下还需明确是否 clone/同步。
 
 ## 9. 运行实验
 
@@ -173,13 +173,27 @@ python resources/lesson-20-scheduler-state-machine/run_lesson20.py
 
 当前 CacheManager 明确没有 eviction；接纳必须避免触发不足。
 
-## 11. 面试追问
+## 11. 检验问题与参考答案
 
-1. 如何避免队首长 Prompt 阻塞后面的短 Prompt？
-2. Prefill Token Budget 与 Chunked Prefill 有什么区别？
-3. 为什么保留完整未来 Output Page 会降低并发，却提升运行中安全性？
-4. 若 Running Set 是 Set，Decode Batch 顺序是否稳定？会影响什么？
-5. 怎样设计兼顾 TTFT 与 ITL 的调度策略？
+### 问题 1：如何避免队首长 Prompt 阻塞后面的短 Prompt？
+
+**参考答案：** 可以从严格 FIFO 改为允许跳过暂时无法接纳的请求，或者按 Prompt 长度、等待时间做分组/优先级调度。但这样会牺牲纯 FIFO 公平性，需要防止长请求长期饥饿。更成熟的设计通常会把“等待时间”和“资源代价”一起纳入选择策略。
+
+### 问题 2：Prefill Token Budget 与 Chunked Prefill 有什么区别？
+
+**参考答案：** Token Budget 只限制这一轮总共接纳多少 Prompt Token，但一个请求一旦被选中，当前实现仍整段 Prefill。Chunked Prefill 会把单个长 Prompt 拆成多个片段，在多个调度轮次逐步 Prefill，因此能更细地与 Decode 交错，降低长 Prompt 独占 GPU 的时间。
+
+### 问题 3：为什么保留完整未来 Output Page 会降低并发，却提升运行中安全性？
+
+**参考答案：** Scheduler 在接纳时按 `prompt + max_output` 做保守容量预估，相当于提前为最坏情况留出空间。这样请求进入 Running 后不容易中途因为 Page 不足失败；代价是很多请求实际会提前 EOS，那些“可能用到但最后没用到”的预算阻止了更多请求同时进入。
+
+### 问题 4：若 Running Set 是 Set，Decode Batch 顺序是否稳定？会影响什么？
+
+**参考答案：** Set 的迭代顺序不应视为稳定 API。对数学上逐请求独立的 Forward，顺序可以变化；但若随机数、日志、结果映射或 Page 行身份偷偷依赖当前 Batch Row，就会出现不可复现问题。因此请求身份必须由 `Req/uid/table_idx` 明确承载。
+
+### 问题 5：怎样设计兼顾 TTFT 与 ITL 的调度策略？
+
+**参考答案：** 可以限制每轮 Prefill 占用的 Token Budget、对长 Prompt 做 Chunked Prefill，并设置 Decode 服务份额或最大连续 Prefill 轮数。目标不是固定“Prefill 永远优先”或“Decode 永远优先”，而是在新请求首 Token 延迟和已有请求逐 Token 延迟之间按 workload 做可测的权衡。
 
 ## 12. 一句话复述
 
