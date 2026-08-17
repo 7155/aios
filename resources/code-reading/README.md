@@ -1,8 +1,25 @@
 # AIOS 核心源码带读篇
 
-> 固定源码：`db343cbe07075c619d2519cb499c401f9edf895a`（`main`）
+> 固定源码：`c335497c6bf67a4dc8cb5ba748ace7b7c1cb77af`（`main`）
 >
 > 这条路线不按文件夹逐个翻译，而是追踪一次请求的真实运行顺序：从 `LLM.generate()` 进入 Scheduler，经 Prefill/Decode、Page Table、Engine、Model、FlashInfer，再回到 Token 与结果。
+
+## README 就是源码课
+
+课程不再要求你来回切换源码：
+
+```text
+关键函数直接贴进 README
+→ 先给函数用途与调用者
+→ 解释每个参数/字段/Shape
+→ 按运行顺序逐段讲代码
+→ 给进入前和执行后状态
+→ 最后才给源码路径用于核验
+```
+
+Lesson 29～36 继续把这一标准扩展到 CUDA/Triton/FlashInfer：
+
+> [继续学习 CUDA 与后续优化](../cuda-optimization/README.md)
 
 ## 阅读顺序
 
@@ -25,10 +42,10 @@
 ```text
 先看调用图
 → 用 Tiny 数值手算状态
-→ 只读本节 5～15 行关键源码
+→ 阅读 README 内置关键源码
 → 写出进入前/执行后状态
 → 运行 CPU 小实验
-→ 回到真实 CUDA 路径
+→ 对照真实 CUDA 路径
 → 完成检验问题
 → 对照参考答案修正理解
 ```
@@ -45,11 +62,11 @@
 **参考答案：** ……
 ```
 
-检验问题的作用是确认你能不能自己推导状态变化，而不是背结论。答案必须解释“为什么”，不能只给一个 yes/no 或名词。
+答案必须解释“为什么”和状态变化，不能只给名词。
 
 ## 公式渲染约定
 
-所有块级公式统一使用 GitHub 支持的 fenced math：
+所有块级公式统一使用 GitHub fenced math：
 
 ````markdown
 ```math
@@ -57,7 +74,7 @@ R = M - D
 ```
 ````
 
-不会再使用旧式方括号数学定界符；统一使用 fenced math。变量会在公式前后用中文定义，不让公式单独悬空。
+不会再使用旧式方括号数学定界符。
 
 ## 一键验证
 
@@ -65,12 +82,4 @@ R = M - D
 python resources/code-reading/validate_code_reading.py
 ```
 
-它检查：
-
-- 11 节 README 与实验是否存在；
-- 数学代码块是否成对；
-- 不允许使用旧式方括号数学定界符；
-- 不允许出现“面试追问”标题；
-- 有检验问题时必须同时有参考答案；
-- SVG 是否能解析；
-- Python 示例是否能编译并运行。
+它检查 README、公式、检验问题/答案、SVG 与 Python 示例。

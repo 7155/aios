@@ -1,8 +1,8 @@
 # AIOS 课程导航：从通用推理引擎到本地输入法 Runtime
 
-> 当前教材扩展基线：`db343cbe07075c619d2519cb499c401f9edf895a`（`main`）
+> 当前 CUDA 教材扩展基线：`c335497c6bf67a4dc8cb5ba748ace7b7c1cb77af`（`main`）
 >
-> 学习目标：先从 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，最后用 18～28 课沿真实函数调用链完成核心源码带读。
+> 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～36 课从零掌握 CUDA、Triton、FlashInfer 与后续推理优化。
 
 ## 第一篇：通用推理引擎基础
 
@@ -50,9 +50,40 @@
 | 27 | [IME 主状态机](lesson-27-ime-engine-code-reading/README.md) | `ime.py` |
 | 28 | [权重加载与 Packing](lesson-28-weight-loading/README.md) | `weight.py` + `BaseOP` |
 
+## 第四篇：CUDA 与后续推理优化
+
+> [打开 CUDA 长篇导航与验证说明](cuda-optimization/README.md)
+>
+> 这一篇按“完全不打开源码也能学”的标准写：关键函数直接放在 README 中，逐行解释 Pointer、Stride、Shape、内存流量与 GPU 执行顺序。
+
+| 课次 | 教材 | 核心问题 |
+|---:|---|---|
+| 29 | [CUDA 从零](lesson-29-cuda-foundations/README.md) | Host/Device/Kernel/Block/Warp/Stream 到底是什么？ |
+| 30 | [Triton KV Scatter](lesson-30-triton-kv-store/README.md) | `store_cache.py` 每一行如何把 K/V 写入 Page？ |
+| 31 | [Fusion 与显存流量](lesson-31-fusion-memory-traffic/README.md) | QKV、SwiGLU、Residual+RMSNorm 为什么融合？ |
+| 32 | [FlashInfer Paged Attention](lesson-32-flashinfer-paged-attention/README.md) | `cu_seqlens/indices/plan/run` 怎样进入 GPU Kernel？ |
+| 33 | [异步、计时与 Profiling](lesson-33-async-benchmark-profiling/README.md) | 为什么不同步会测到假延迟，怎样找真正瓶颈？ |
+| 34 | [CUDA Graph](lesson-34-cuda-graphs/README.md) | Capture/Replay 为什么适合小模型，又为何与 Ragged Shape 冲突？ |
+| 35 | [量化](lesson-35-quantization/README.md) | BF16/FP8/INT8/INT4、Scale 与 Quantized GEMM 怎样工作？ |
+| 36 | [Speculative 与路线图](lesson-36-speculative-roadmap/README.md) | Draft/Verify 何时加速，MTP 为什么不等于在线多 Token？ |
+
+## README 教材标准
+
+新增课程遵循：
+
+```text
+README 直接包含核心源码
+→ 一段一段解释输入/地址/Shape/状态
+→ 给手算和 CPU 实验
+→ 标明当前已实现与未实现边界
+→ 给检验问题与完整参考答案
+```
+
+不要求学习者再打开源文件才能理解主机制；源码链接只用于核验和继续深入。
+
 ## 公式与图示标准
 
-新增源码带读篇统一使用 GitHub fenced math：
+块级公式统一使用 GitHub fenced math：
 
 ````markdown
 ```math
@@ -60,16 +91,17 @@ E = D - C
 ```
 ````
 
-难懂状态机、Flat Batch、Page 所有权、Fused Residual、FlashInfer Metadata 和 IME 主流程均配有 SVG。图只负责展示关系，关键解释仍完整写在 README。
+难懂状态机、Flat Batch、Page 所有权、CUDA Execution、Triton Scatter 和 CUDA Graph 均配有 SVG；关键解释仍完整写在 README。
 
-## 运行全部核心源码实验
+## 一键验证
 
 ```bash
 for script in resources/lesson-{18..28}-*/run_lesson*.py; do
   python "$script"
 done
-
 python resources/code-reading/validate_code_reading.py
+
+python resources/cuda-optimization/validate_cuda_course.py
 ```
 
 CPU 实验验证机制，不冒充 CUDA 性能；真实 GPU 行为仍由项目测试、Benchmark 与冻结评测负责。
