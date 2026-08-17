@@ -109,9 +109,9 @@ prefix_logits [1,V]
 
 它直接定义：
 
-\[
+```math
 P(x_1 \mid prefix)
-\]
+```
 
 所以首 token 可以从该分布采样：
 
@@ -125,17 +125,15 @@ logits = prefix_logits.expand(attempts, -1)
 
 因此最坏 Page 预算是：
 
-\[
-\text{prefix_len}
-+
-\text{attempts}\times(\text{max_new_tokens}-1)
-\]
+```math
+\text{prefix\_len} + \text{attempts}\times(\text{max\_new\_tokens}-1)
+```
 
 不是：
 
-\[
-\text{attempts}\times(\text{prefix_len}+\text{max_new_tokens})
-\]
+```math
+\text{attempts}\times(\text{prefix\_len}+\text{max\_new\_tokens})
+```
 
 当前源码正按这个公式提前检查 KV Budget。
 
@@ -143,15 +141,15 @@ logits = prefix_logits.expand(attempts, -1)
 
 假设 Prefix 20 token、首轮 8 路、最多 12 token：
 
-\[
+```math
 20 + 8\times(12-1)=108\text{ pages}
-\]
+```
 
 如果复制 Prefix：
 
-\[
+```math
 8\times(20+11)=248\text{ pages}
-\]
+```
 
 共享 Prefix 在这个例子中少使用：
 
@@ -161,9 +159,9 @@ logits = prefix_logits.expand(attempts, -1)
 
 每 Page 约 14 KiB，理论 KV 差约：
 
-\[
+```math
 140\times14\text{ KiB}\approx1.91\text{ MiB}
-\]
+```
 
 对 0.1B 模型看似不大，但这还影响 Page 分配、Page Table、Cache 可用容量和后续 Prefix 复用。
 
@@ -300,13 +298,27 @@ AIOS_IME_MODEL=/path/to/model pytest -q \
   tests/test_ime_gpu.py::test_candidate_group_returns_three_and_recycles_branch_pages
 ```
 
-## 10. 面试追问
+## 10. 检验问题与参考答案
 
-1. 为什么共享 Prefix Page 不需要 Copy-on-write？
-2. 如果候选分支需要修改 Prefix KV，会发生什么？当前 Attention 是否会修改历史 K/V？
-3. 为什么最坏预算是 `prefix + attempts × (max_new_tokens - 1)`？
-4. Page Size 变成 16 后，token-LCP 复用会遇到什么内部碎片问题？
-5. `expand` 与真实复制在首 token Logits 上有什么区别？
+### 问题 1：为什么共享 Prefix Page 不需要 Copy-on-write？
+
+**参考答案：** 因为 Decode 只会把新 Token 的 K/V 写到新的 suffix Page，不会原地修改历史 Prefix 的 K/V。所有候选都只是只读同一份 Prefix Cache，所以没有“某个分支写坏共享页”的风险。若未来算法允许修改历史 K/V，才需要 Copy-on-write 或另一种版本化机制。
+
+### 问题 2：为什么最坏 Page 预算是 `prefix + attempts × (max_new_tokens - 1)`？
+
+**参考答案：** Prefix 只保存一份；第一个新 Token 直接从 Prefix 最后位置的 Logits 采样，还没有执行该 Token 的 Decode，所以不需要它的 KV Page。只有为了预测第二个及之后的 Token，才需要把已生成 Token 写进 KV。因此每个分支最多额外占 `max_new_tokens - 1` 页。
+
+### 问题 3：Page Size 变成 16 后，token-LCP 复用会遇到什么问题？
+
+**参考答案：** LCP 可能落在一个 16-token Block 中间。若 Cache 只能以整块共享，就要么丢弃这个半块重新计算，产生内部碎片和重复 Prefill；要么支持部分 Block 复用/Copy-on-write，元数据和所有权都会更复杂。`page_size=1` 避免了这个边界问题，但增加 Page Table 与分配开销。
+
+### 问题 4：`expand` 与真实复制 Prefix Logits 有什么区别？
+
+**参考答案：** `expand` 让多个逻辑 Batch Row 读取同一块底层数据，不重新复制 `[1,V]` 的内容；真实复制会产生多份内存。这里每个候选只需要基于同一个分布使用不同随机数采样，因此广播视图足够。
+
+### 问题 5：为什么 CandidateGroup 不能只理解成 Static Batch？
+
+**参考答案：** Static Batch 只描述“多行一起算”。CandidateGroup 还定义了共享 Prefix KV、共同 generation 生命周期、ragged row 退出、候选池统一过滤与 MMR，以及不足三条时的组级 refill。它是带业务语义和资源所有权的批处理单位。
 
 ## 11. 一句话复述
 
