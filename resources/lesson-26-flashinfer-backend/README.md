@@ -187,13 +187,27 @@ python resources/lesson-26-flashinfer-backend/run_lesson26.py
 
 当前 `pos_encoding_mode="NONE"`，因为 Q/K 已在模型层应用 RoPE。
 
-## 12. 面试追问
+## 12. 检验问题与参考答案
 
-1. 增量 Prefill 为什么 `q_len < k_len`？
-2. `last_page_len` 当前为什么全是 1？Page Size 改大后怎样？
-3. Plan 为什么可以跨层复用，却不能随便跨 Batch 复用？
-4. 为什么 Store KV 必须发生在 Attention Run 前？
-5. 若 `indices` 顺序与 `cu_k` 不匹配，会出现 Shape Error 还是静默语义错误？
+### 问题 1：增量 Prefill 为什么 `q_len < k_len`？
+
+**参考答案：** Query 只来自这一轮尚未计算的 extension，而 Key/Value 上下文包含“已缓存历史 + 本轮新增”。例如已经缓存 3 个 Token，又新增 2 个，则本轮只算 2 个 Query，但每个 Query 可以读取总共 5 个位置，所以 `q_len=2`、`k_len=5`。
+
+### 问题 2：`last_page_len` 当前为什么全是 1？Page Size 改大后怎样？
+
+**参考答案：** 当前 `page_size=1`，每个 Page 只装一个 Token，所以最后一页只要存在就必然有效长度为 1。若 Page Size=16，最后一页可能只用了 1～16 个 Token，Kernel 需要 `last_page_len` 告诉它哪些位置是真实 K/V，避免读取未使用槽位。
+
+### 问题 3：Plan 为什么可以跨层复用，却不能随便跨 Batch 复用？
+
+**参考答案：** 同一个 Batch 在 14 层中的逻辑序列长度、Page Table 行和 Flat 边界都不变，变化的只是每层实际 K/V Tensor，因此 Metadata Layout 可复用。换到下一个 Batch 后，请求集合、长度、Page ID 都可能变化，旧 Plan 就不再描述新的内存布局。
+
+### 问题 4：为什么 `store_kv` 必须发生在 Attention Run 前？
+
+**参考答案：** 当前 Token 的 Query 在标准因果 Self-Attention 中允许看到自己，因此它自己的 K/V 也属于当前可见上下文。若先 Run 再写 K/V，当前 Query 只能看到历史 Token，相当于改变 Attention 函数，产生 off-by-one 语义错误。
+
+### 问题 5：若 `indices` 顺序与 `cu_k` 不匹配，会出现 Shape Error 还是静默语义错误？
+
+**参考答案：** 很可能是静默语义错误。总长度仍可能完全匹配，Kernel 能正常读取同样数量的 Page，只是把本属于请求 B 的 Page 当成 A 的历史，或顺序错乱。正因为 Shape 可以合法，Metadata 的请求边界和 Page 顺序必须用小例子和测试明确验证。
 
 ## 13. 一句话复述
 
