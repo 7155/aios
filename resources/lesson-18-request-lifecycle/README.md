@@ -188,13 +188,27 @@ python resources/lesson-18-request-lifecycle/run_lesson18.py
 
 不一定。它等于 `max_running_reqs`；总请求可以更多，完成后 Slot 被后续请求复用。
 
-## 10. 面试追问
+## 10. 检验问题与参考答案
 
-1. 为什么 `Engine` 不直接接收 Prompt 字符串？
-2. 若 `max_running_reqs < len(prompts)`，剩余请求在哪里等待？
-3. 为什么 API 结果按 UID 排序，而不是让 Set 保持顺序？
-4. 如果 `schedule_next_batch()` 返回 `None` 但 `has_work=True`，循环应该怎样处理？当前为何直接退出？
-5. 通用 `generate()` 每次新建 Scheduler，与长生命周期服务 Scheduler 有什么差异？
+### 问题 1：为什么 `Engine` 不直接接收 Prompt 字符串？
+
+**参考答案：** 文本解析、Tokenizer、请求接纳和 Slot/Page 分配都属于 Engine 之前的控制面。Engine 的输入应该已经是一个可执行 Batch：有哪些请求、Flat Token、Position、写入 Page 和 Attention Metadata 都已确定。这样 Engine 才能只负责执行与采样，而不与输入格式和调度策略耦合。
+
+### 问题 2：若 `max_running_reqs < len(prompts)`，剩余请求在哪里等待？
+
+**参考答案：** 它们先进入 `PrefillManager.pending_list`，只有当 Table Slot、Running Set 容量和 KV Page 预算允许时才被选入 Prefill Batch。已完成请求释放 Slot/Page 后，后续 Pending Request 才能进入。
+
+### 问题 3：为什么 API 结果按 UID 排序，而不是依赖 Runtime Set 的顺序？
+
+**参考答案：** Decode Running Set 的集合顺序和请求完成先后都不等于用户提交顺序。UID 是稳定的请求身份，最终按 UID 排序才能恢复 API 输入顺序，避免调度优化改变调用方观察到的结果排列。
+
+### 问题 4：如果 `schedule_next_batch()` 返回 `None` 但 `has_work=True`，说明了什么？
+
+**参考答案：** 说明系统声称还有 Pending/Running 工作，却在当前资源或策略下无法构造一个可运行 Batch。这可能是容量估算、调度策略或资源状态不一致。当前 `generate()` 直接退出是一个保守边界；长生命周期服务通常需要区分“暂时不可调度”和“永久无进展”，否则可能过早结束或形成死循环。
+
+### 问题 5：通用 `generate()` 每次新建 Scheduler，与长生命周期服务 Scheduler 有什么差异？
+
+**参考答案：** 每次新建 Scheduler 的生命周期等于一次 API 调用，状态简单，调用之间不共享队列；长生命周期 Scheduler 则持续接收新请求，需要 IPC/线程安全、取消、优先级、公平性、长期 Cache Eviction 和恢复等额外机制。二者核心调度概念相同，但所有权边界不同。
 
 ## 11. 一句话复述
 
