@@ -52,9 +52,9 @@ Shape 全部合法，结果却错误。
 
 因此安全条件是：
 
-\[
+```math
 \text{old\_ids}[:k] = \text{new\_ids}[:k]
-\]
+```
 
 最大这样的 `k` 就是 token Longest Common Prefix。
 
@@ -146,7 +146,7 @@ token 3 作为最后位置时的 next-token logits
 
 它并没有单独保存每个历史位置的 Logits；K/V 本身不能直接恢复该 Logits。因此当前选择重新 Prefill，保证分数精确。
 
-这是非常好的面试题：
+这是一个重要检验点：
 
 > KV Cache 保存历史 K/V，不等于保存每个历史位置的输出 Logits。
 
@@ -270,14 +270,28 @@ AIOS_IME_MODEL=/path/to/model pytest -q \
   tests/test_ime_gpu.py::test_incremental_prefix_reuses_token_lcp
 ```
 
-## 11. 面试追问
+## 11. 检验问题与参考答案
 
-1. 为什么 KV Cache 不能直接恢复历史任意位置的 next-token Logits？
-2. 若保存每个 Prefix 位置的 Logits，可以优化 Backspace 吗？代价是什么？
-3. Page Size=16 时，LCP 落在 Page 中间怎样处理？
-4. 为什么增量 Prefill 仍需给新增 token 构造正确 `positions`？
-5. 跨用户 APC 与本地相邻按键 LCP 的所有权和 eviction 策略有何不同？
+### 问题 1：为什么 KV Cache 不能直接恢复历史任意位置的 next-token Logits？
+
+**参考答案：** K/V 是 Attention 为后续 Query 准备的历史键和值，它们不是经过后续 Attention、MLP、Final Norm 和 LM Head 后得到的最终 Logits。要恢复“某个历史位置作为最后位置时”的 Logits，要么重新运行对应后缀计算，要么额外缓存当时的输出 Logits。
+
+### 问题 2：若保存每个 Prefix 位置的 Logits，可以优化 Backspace 吗？代价是什么？
+
+**参考答案：** 可以。严格 Backspace 到一个已有 Token 边界时，可以直接取该位置保存的 next-token Logits，无需重新 Prefill。但这会增加每个位置一份 `vocab_size` 级别的存储，远比 KV Page 昂贵；也要处理 Tokenizer 重切后哪些历史 Logits 仍然有效。
+
+### 问题 3：Page Size=16 时，LCP 落在 Page 中间怎样处理？
+
+**参考答案：** 若只能复用完整 Page，就只能保留到上一个完整 16-token 边界，Page 内剩余稳定 Token 需要重新计算；若想精确复用，就要支持部分 Page 或 Copy-on-write，复杂度上升。当前 page_size=1 用更多元数据换取了精确 Token 粒度。
+
+### 问题 4：为什么增量 Prefill 仍需给新增 Token 构造正确 `positions`？
+
+**参考答案：** 历史 K/V 已经带着原位置对应的 RoPE 信息。新增 Token 若从 position 0 重新编号，其 Q/K 会使用错误旋转角度，破坏与历史 K/V 的相对位置关系。复用内容的同时必须复用同一坐标系。
+
+### 问题 5：跨用户 Prefix Cache 与本地相邻按键 LCP 的所有权有何不同？
+
+**参考答案：** 本地 LCP 只有一个当前用户、一个上一 Prefix，所有权简单，可以直接替换尾页。跨用户 Prefix Cache 是共享全局资源，需要 Hash、引用计数、LRU/eviction、隔离和并发一致性，不能沿用单用户“只有一份当前 Prefix”的假设。
 
 ## 12. 一句话复述
 
-跨按键复用必须在重新分词后比较 Token ID 的最长公共前缀，只保留语义与位置都稳定的 Page；追加和尾部改写可增量 Prefill，而严格 Backspace 因缺少新末位 Logits当前重新 Prefill。优化对长 Prefix 有收益，对短 Prefix 可能被固定开销淹没。
+跨按键复用必须在重新分词后比较 Token ID 的最长公共前缀，只保留语义与位置都稳定的 Page；追加和尾部改写可增量 Prefill，而严格 Backspace 因缺少新末位 Logits 当前重新 Prefill。优化对长 Prefix 有收益，对短 Prefix 可能被固定开销淹没。
