@@ -157,13 +157,27 @@ python resources/lesson-23-page-table-cache-manager/run_lesson23.py
 
 通常不需要。只要 Page 未重新分配就不可读；新写入会覆盖。安全性依赖映射所有权，而不是数据清零。
 
-## 10. 面试追问
+## 10. 检验问题与参考答案
 
-1. 为什么当前 Page Size=1 使分配简单，却增加 Metadata？
-2. 怎样检测 Double-free 与 Page 泄漏？
-3. Prefix Cache Eviction 需要哪些额外数据结构？
-4. 多个 Page Table Row 共享一个 Page 时，谁负责释放？
-5. Tensor Parallel 后 KV Pool Shape 与 Page 预算怎样变化？
+### 问题 1：为什么当前 Page Size=1 使分配简单，却增加 Metadata？
+
+**参考答案：** Page Size=1 时每个 Token 都恰好对应一个 Page，不存在半满 Block、Block 内偏移和跨 Block 追加问题，所以 token-LCP 和逐 Token Decode 都非常直接。但代价是一个长序列需要更多 Page ID，Page Table、索引 Tensor 和 allocator 操作数量都会增加。
+
+### 问题 2：怎样检测 Double-free 与 Page 泄漏？
+
+**参考答案：** 最直接的是维护 Page 所有权 Bitmap/状态表，分配时要求状态从 free→owned，释放时要求 owned→free，重复释放立即报错；同时维护总量不变量，例如 `free + owned == num_pages`。测试还应在多轮请求和异常/取消后检查所有 Page 是否能恢复到初始数量。
+
+### 问题 3：Prefix Cache Eviction 需要哪些额外数据结构？
+
+**参考答案：** 至少需要 Cache Entry/Handle、Prefix Key 或 Token Hash、Page 列表、引用计数/锁、最近使用时间或优先级，以及全局容量统计。Eviction 还必须只淘汰没有活跃引用的 Entry，否则会释放仍被请求读取的 Page。
+
+### 问题 4：多个 Page Table Row 共享一个 Page 时，谁负责释放？
+
+**参考答案：** 必须有一个高于单 Row 的明确 Owner，或者由 CacheManager 用引用计数决定最后一个引用何时释放。当前 IME CandidateGroup 由组级逻辑持有共享 Prefix，单分支只释放自己的 suffix；如果每个 Row 都按普通请求完成时直接 free Prefix，就会发生 use-after-free。
+
+### 问题 5：Tensor Parallel 后 KV Pool Shape 与 Page 预算怎样变化？
+
+**参考答案：** 每个 TP Rank 通常只保存本地 KV Heads，所以单 Rank 的 `local_kv_heads` 下降，单 Page 的本地字节数按本地 Head 数缩小；但所有 Rank 都要为同一逻辑 Token 保留对应 Page，并保持 Page 身份/调度一致。总集群 KV 容量不会简单等于单卡值，还要考虑分片方式和通信。
 
 ## 11. 一句话复述
 
