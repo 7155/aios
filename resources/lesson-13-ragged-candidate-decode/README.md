@@ -21,21 +21,21 @@ row 3：12 token 达上限
 
 如果 12 步始终保持 Batch=4：
 
-\[
+```math
 4\times12=48\text{ row-steps}
-\]
+```
 
 真实需要：
 
-\[
+```math
 2+5+8+12=27\text{ row-steps}
-\]
+```
 
 浪费：
 
-\[
+```math
 48-27=21\text{ row-steps}
-\]
+```
 
 Ragged Decode 的做法：
 
@@ -161,9 +161,9 @@ min_new_tokens 前屏蔽 EOS/句末 token
 
 但最终排序希望衡量原模型本身：
 
-\[
+```math
 \log P_{raw}(token\mid context)
-\]
+```
 
 当前 `Sampler.sample_with_logprobs` 先保存：
 
@@ -189,11 +189,9 @@ Top-p
 
 这避免候选只因为更高 temperature 被重新缩放，就获得不可比的排序优势。
 
-### 面试陷阱
+### 检验问题：`min_new_tokens` 前禁止 EOS，那 EOS 的 raw logprob 是否也要改成 `-inf`？
 
-> `min_new_tokens` 前禁止 EOS，那 EOS 的 raw logprob 是否也要被改成 `-inf`？
-
-不需要。Stop Mask 只约束探索动作；最终被选中的非 EOS token 的分数仍从原始分布读取。这样 Sampling Policy 不污染 Model Score。
+**参考答案：** 不需要。`min_new_tokens` 是 Sampling Policy，只限制当前是否允许“停下来”，不是在修改语言模型本身的分布。系统应在采样副本里屏蔽 EOS，但保留原始 `log_softmax`，这样最终分数仍能回答“模型本来认为这些已生成 Token 有多可能”。
 
 ## 6. 为什么用 EOS 与句末标点共同停止
 
@@ -291,13 +289,27 @@ pytest -q tests/test_ime.py::test_candidate_random_stream_survives_active_row_co
 pytest -q tests/test_ime.py::test_sampler_returns_raw_logprob_before_temperature
 ```
 
-## 11. 面试追问
+## 11. 检验问题与参考答案
 
-1. 为什么 active rows 压缩后 Page Table 不需要整体复制？
-2. Stateless sampling 与为每个 row 保存一个 `torch.Generator` 相比有什么取舍？
-3. 为什么句末标点停止不能替代候选合法性过滤？
-4. `average_logprob` 为什么比 `sum_logprob` 更不偏向短候选？它仍有什么长度偏差？
-5. 如果 refill 与首轮同时保留所有 suffix KV，会怎样影响峰值显存？
+### 问题 1：为什么 active rows 压缩后 Page Table 不需要整体复制？
+
+**参考答案：** 压缩的是当前参与计算的 Dense Tensor 行，而 Page Table 里的长期身份仍由原始 `row_indices` 表示。`active_local` 只是从原始候选集合中选出幸存者，再用 `row_indices[active_local]` 找回各自的 Page Table Row，所以没有必要为每次压缩重建整张 Page Table。
+
+### 问题 2：Stateless sampling 与为每个候选保存一个 `torch.Generator` 有什么取舍？
+
+**参考答案：** 两者都能避免全局 RNG 被 row compaction 扰动。每候选 Generator 需要维护可变 RNG 状态和生命周期；stateless 方法直接由 `(seed, step)` 计算随机数，更容易重放、并行和调试，但需要可靠的哈希/伪随机映射，并可能预计算随机矩阵。
+
+### 问题 3：为什么句末标点停止不能替代候选合法性过滤？
+
+**参考答案：** Stop Rule 只决定“何时不再继续生成”。候选在停止时仍可能是助手模板、重复句、边界重复、过长或语义不自然。因此生成边界和产品合法性是两个不同层次。
+
+### 问题 4：`average_logprob` 为什么比 `sum_logprob` 更不偏向短候选？它仍有什么问题？
+
+**参考答案：** Sum Logprob 会随着 Token 数增加不断累加负数，天然惩罚长候选；取平均后把总分除以 Token 数，降低这种直接长度偏差。但平均分仍可能让长候选用多个高频容易 Token 稀释一个关键低概率 Token，所以还需要长度限制、治理和真实评测。
+
+### 问题 5：为什么 refill 应在治理后触发，而不是首轮结束立即固定再采 4 路？
+
+**参考答案：** 因为首轮 8 路中是否“够三条”只有经过过滤、去重和 MMR 后才能知道。若已经有三个合格候选，再采 4 路就是无意义的额外延迟和 KV 开销。Refill 是由候选池质量触发的条件动作。
 
 ## 12. 一句话复述
 
