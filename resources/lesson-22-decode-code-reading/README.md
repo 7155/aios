@@ -153,14 +153,28 @@ python resources/lesson-22-decode-code-reading/run_lesson22.py
 
 AIOS 使用 Flat Token，输入是 `[B]`，Head 维度在模型内部建立。
 
-## 10. 面试追问
+## 10. 检验问题与参考答案
 
-1. 为什么 `complete_one()` 后 `extend_len` 又变成 1？
-2. 若 Sampling 后立即把 `cached_len` 也增加到包括新 Token，会导致什么？
-3. Set 顺序如何影响随机采样可复现性？
-4. Beam Search 下 `Req` 与 Page 所有权要怎样扩展？
-5. Speculative Decoding 一轮接纳多个 Token 时，`extend_len` 是否仍为 1？
+### 问题 1：为什么 `complete_one()` 后 `extend_len` 又变成 1？
+
+**参考答案：** 本轮 Forward 结束后，原来的未缓存 Token 全部进入 KV，所以先令 `cached_len=device_len`；随后 Sampler 又产生一个新 Token，`device_len` 增 1。于是新的 `device_len-cached_len=1`，正好表示“下一轮只有刚采出的这个 Token 需要 Forward”。
+
+### 问题 2：若 Sampling 后立即把 `cached_len` 也增加到包括新 Token，会导致什么？
+
+**参考答案：** 系统会误以为新 Token 的 K/V 已经存在，下一轮 `extend_len` 会变成 0，从而跳过该 Token 的 Forward。后续 Attention 会缺失它的 K/V，Page Table 也不会为它分配写入位置，状态机语义被破坏。
+
+### 问题 3：Set 顺序如何影响随机采样可复现性？
+
+**参考答案：** 若每轮按 Set 当前遍历顺序从一个全局 RNG 连续取随机数，请求顺序变化会让不同请求拿到不同随机数，即使它们的 UID 和输入没变。要获得稳定复现，应把随机流绑定到请求身份/step，或使用每请求独立 Generator，而不是依赖 Batch Row 顺序。
+
+### 问题 4：Beam Search 下 `Req` 与 Page 所有权要怎样扩展？
+
+**参考答案：** 一条逻辑请求会分成多个 Beam 分支，它们共享 Prefix KV、随后拥有各自 Suffix KV，并可能在每轮重新排序、复制或淘汰。`Req` 需要从“单序列状态”扩展为 request + beam states，Page 管理还要支持共享引用和分支释放，必要时引入引用计数或 Copy-on-write。
+
+### 问题 5：Speculative Decoding 一轮接纳多个 Token 时，`extend_len` 是否仍为 1？
+
+**参考答案：** 不一定。若一次接受了多个 Draft Token，这些已进入逻辑序列但尚未写入主模型 KV 的 Token 可以形成一个长度大于 1 的 extension，主模型下一轮可能一次验证/写入多个位置。因此当前“一轮领先一格”的不变量是普通单 Token 自回归 Decode 的特例。
 
 ## 11. 一句话复述
 
-Decode 的每轮输入是上一轮刚采样但尚未缓存的一个 Token；Forward 写入其 K/V 后再采样下一个 Token，因此 Token Pool 总比 KV Cache 领先一格，EOS/预算完成时最后采样 Token无需进入 Cache。
+Decode 的每轮输入是上一轮刚采样但尚未缓存的一个 Token；Forward 写入其 K/V 后再采样下一个 Token，因此 Token Pool 总比 KV Cache 领先一格，EOS/预算完成时最后采样 Token 无需进入 Cache。
