@@ -167,13 +167,27 @@ python resources/lesson-24-engine-context/run_lesson24.py
 
 Serving 只需要各请求最后位置；完整 Logits 仅训练/评分/诊断需要。
 
-## 10. 面试追问
+## 10. 检验问题与参考答案
 
-1. 为什么 Context 清理必须放在 `finally`？
-2. 如何让两个 GPU 各有独立 Context？
-3. LM Head Last-index 优化在训练阶段为什么不能直接用？
-4. 每请求 Python Sampler 循环何时会成为瓶颈？
-5. 隐式 Context 与显式参数传递怎样权衡可读性和性能？
+### 问题 1：为什么 Context 清理必须放在 `finally`？
+
+**参考答案：** Forward 过程中任何一层都可能抛异常。如果只在正常返回后清空 `_batch`，异常会让旧 Batch 永久残留，下一次 Forward 可能误读陈旧输入，或因为 Nested Guard 认为已有活动 Batch 而无法继续。`finally` 保证正常、异常两条路径都恢复 Context 不变量。
+
+### 问题 2：如何让两个 GPU 各有独立 Context？
+
+**参考答案：** 可以让每个 Device/Engine 持有自己的 Context，并让 Model 显式引用对应实例；或者使用 thread/task-local `contextvars`，避免一个进程级 `_GLOBAL_CTX` 被所有模型共享。关键是把“当前 Batch 属于哪个 Device/Model”变成明确所有权。
+
+### 问题 3：LM Head Last-index 优化在训练阶段为什么不能直接用？
+
+**参考答案：** 自回归训练需要几乎每个有效位置都预测下一个 Token并计算 Loss，因此历史位置的 Logits 都是监督信号。Serving Prefill 只需要每条 Prompt 最后位置来采样首个输出 Token，才可以丢弃其他位置的词表投影。
+
+### 问题 4：每请求 Python Sampler 循环何时会成为瓶颈？
+
+**参考答案：** 当 Batch 很大、模型本身很小或 Decode 每步计算很短时，逐请求 Python 对象创建、分支判断和 Kernel 调用的固定开销会占比上升。此时可以把相同 Sampling 配置的请求分组，或将 Temperature/Top-k/Top-p 与抽样向量化到 GPU。
+
+### 问题 5：隐式 Context 与显式参数传递怎样权衡？
+
+**参考答案：** 隐式 Context 让每层函数签名简洁，减少大量 `batch/cache/metadata` 参数穿透；代价是依赖不显眼、测试需准备全局状态、并发所有权更难。显式传递更易推理和并发，但接口更长。选择取决于 Runtime 是否单实例以及未来并发需求。
 
 ## 11. 一句话复述
 
