@@ -206,13 +206,27 @@ python resources/lesson-27-ime-engine-code-reading/run_lesson27.py
 
 错。它只是 Page 数诊断，不包括其他内存。
 
-## 13. 面试追问
+## 13. 检验问题与参考答案
 
-1. 为什么 Prefix Page 不是 `allocated_pages` 的一部分？
-2. 若 Refill 后仍不足三条，当前返回什么？
-3. 为什么 `prefix_logits.expand(attempts,-1)` 安全？后续是否会原地修改？
-4. Cancellation 与 `_run_lock` 的组合会造成新请求等待多久？
-5. 怎样把单用户 Engine 扩展为多个独立 IME Session？
+### 问题 1：为什么 Prefix Page 不是 `allocated_pages` 的一部分？
+
+**参考答案：** `allocated_pages` 只追踪当前候选批次新分配、批次结束后就可以释放的 Suffix Page。Prefix Page 的生命周期更长，它由 Engine 的持久 Prefix Cache 持有，还可能被下一次按键通过 token-LCP 复用。若把 Prefix 也放进临时列表，批次物化后会把仍需保留的 Cache 一起释放。
+
+### 问题 2：若 Refill 后仍不足三条，当前返回什么？
+
+**参考答案：** 当 `actual_attempts` 达到 `max_sampling_attempts` 后循环结束，系统对现有 `raw_candidates` 再做一次 `select_top_candidates`，最终可能返回少于 `display_candidates` 的结果。它不会为了凑满三条无限循环，也不会伪造候选；候选完整率应由上层指标暴露。
+
+### 问题 3：为什么 `prefix_logits.expand(attempts,-1)` 安全？后续是否会原地修改？
+
+**参考答案：** 所有首分支在采样前拥有同一个条件分布，只需要逻辑上把 `[1,V]` 视为 `[attempts,V]`。Sampler 会从 Logits 构造 `raw_log_probs/scaled`，需要 Stop Mask 时也先 `clone()` sampling copy，不会原地修改共享 `prefix_logits`，因此 Expand View 不会让一条分支污染其他分支。
+
+### 问题 4：Cancellation 与 `_run_lock` 的组合会造成新请求等待多久？
+
+**参考答案：** 新按键可以先通过独立 `_generation_lock` 立即把旧 Token 标成 cancelled，但新的 `complete()` 仍要等待旧调用释放 `_run_lock`。旧调用在下一次 token-step cancellation check 后停止，因此等待时间大致由当前已经发射的 GPU 工作、同步和 Python 收尾决定，而不是等旧候选完整生成到上限。
+
+### 问题 5：怎样把单用户 Engine 扩展为多个独立 IME Session？
+
+**参考答案：** 需要把 `_prefix_token_ids/_prefix_pages/_prefix_logits/_active_token/_generation_id` 从 Engine 全局字段拆到 Session 状态，并为每个 Session 维护独立 latest-wins。共享 GPU Runtime 还需要更上层 Scheduler 协调各 Session 的 Batch/Page，同时 Prefix Page 所有权必须带 Session 身份，不能继续假设只有一个持久 Prefix。
 
 ## 14. 一句话复述
 
