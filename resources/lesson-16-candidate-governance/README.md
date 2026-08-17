@@ -78,12 +78,12 @@ Sum Logprob 随长度通常越来越负，天然偏向短句。
 
 当前基础分：
 
-\[
+```math
 \operatorname{avglogp}(c)
 =
 \frac{1}{|c|}
 \sum_t \log P(c_t\mid prefix,c_{<t})
-\]
+```
 
 再减：
 
@@ -147,7 +147,7 @@ casefold
 
 之后每个候选计算：
 
-\[
+```math
 \operatorname{selection}(c)
 =
 \operatorname{base}(c)
@@ -155,7 +155,7 @@ casefold
 \lambda
 \max_{s\in selected}
 \operatorname{similarity}(c,s)
-\]
+```
 
 当前 similarity 是字符 bigram Jaccard。
 
@@ -182,9 +182,9 @@ C：等我回来再联系你      score -0.16，与 A 较不同
 
 语言模型只需计算：
 
-\[
+```math
 \frac1{|c|}\sum_t\log P(c_t\mid context,c_{<t})
-\]
+```
 
 拼音字符串不直接输入模型。词典负责发音约束，LM 负责中文语境。
 
@@ -264,14 +264,28 @@ AIOS_IME_MODEL=/path/to/model pytest -q \
   tests/test_ime_gpu.py::test_stable_same_pinyin_scoring_avoids_decode_near_tie_flip
 ```
 
-## 12. 面试追问
+## 12. 检验问题与参考答案
 
-1. 为什么 `average_logprob` 仍可能偏好某些长度？
-2. MMR 的 `lambda` 太大/太小分别怎样？
-3. Hard Rule 与模型 Reranker 的所有权应该如何划分？
-4. 为什么 stable scoring 使用 `return_all_logits=True`？
-5. 如何证明一个排序变化来自数值路径而不是 Tokenizer 或候选输入差异？
+### 问题 1：为什么 `average_logprob` 仍可能偏好某些长度？
+
+**参考答案：** 平均分只消除了“Token 越多总和越负”的直接惩罚，却没有消除语言模型对常见短语、标点和高频 Token 的结构性偏好。长候选还可能用多个容易 Token 稀释一个关键低概率位置，因此仍需要长度边界、产品治理和真实样本评测。
+
+### 问题 2：MMR 的 `lambda` 太大或太小分别会怎样？
+
+**参考答案：** 太小几乎只按 base score 排序，Top-3 容易是同一句话的小改写；太大会过度奖励差异，即使某条候选模型质量明显更差，也可能因为“不像已选项”被选中。`lambda` 控制的是候选栏整体的质量—多样性权衡，而不是模型本身。
+
+### 问题 3：Hard Rule 与模型 Reranker 的所有权应该如何划分？
+
+**参考答案：** Hard Rule 更适合处理确定的产品禁区，例如空串、助手模板、重复 n-gram、明显未完成片段；Reranker 更适合连续质量判断。若把绝对非法规则交给学习模型，可能出现高分漏过；若把所有风格偏好都写成硬规则，又会过度僵化。
+
+### 问题 4：为什么 stable scoring 使用 `return_all_logits=True`？
+
+**参考答案：** Teacher-forced 评分需要 candidate 每个 Token 对应的条件概率，而不仅是整条序列最后一个位置的 next-token Logits。`return_all_logits=True` 才能取出 Prefix 后每个 candidate 位置的 Logits，再 gather 对应 target Token 的 logprob。
+
+### 问题 5：如何证明排序变化来自数值路径，而不是 Tokenizer 或输入差异？
+
+**参考答案：** 必须固定模型权重、Tokenizer、prefix、candidate token IDs 与评分公式，只改变 Prefill/Decode kernel 路径，然后比较逐 Token Logprob 和最终排序。如果输入 Token 本身不同，就不能把差异归因于 BF16 kernel 舍入。
 
 ## 13. 一句话复述
 
-AIOS-IME 把探索分布与原始模型分数分开，先过滤绝对不可显示候选，再按显示 key 去重，用软惩罚和字符 bigram MMR组成互异 Top-3；对于 BF16 近平局的固定中文候选，使用完整序列 Varlen Prefill 稳定复评分，而不是假设 shared decode 排名必然一致。
+AIOS-IME 把探索分布与原始模型分数分开，先过滤绝对不可显示候选，再按显示 key 去重，用软惩罚和字符 bigram MMR 组成互异 Top-3；对于 BF16 近平局的固定中文候选，使用完整序列 Varlen Prefill 稳定复评分，而不是假设 shared decode 排名必然一致。
