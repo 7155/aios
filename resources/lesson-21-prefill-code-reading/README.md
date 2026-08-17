@@ -194,13 +194,27 @@ python resources/lesson-21-prefill-code-reading/run_lesson21.py
 
 错。它是当前 K/V 写入物理 Cache 的 Page 位置。
 
-## 11. 面试追问
+## 11. 检验问题与参考答案
 
-1. Flat Prefill 怎样避免请求 A Attention 到请求 B？
-2. 为什么 `input_mapping` 使用 Slot，而不是 UID？
-3. 若 `return_all_logits=True`，LM Head 为什么不能只取 Last Indices？
-4. Chunked Prefill 时 `cached_len/extend_len` 如何变化？
-5. Pinned Memory 与真正的 CPU/GPU overlap 之间还缺什么？
+### 问题 1：Flat Prefill 怎样避免请求 A Attention 到请求 B？
+
+**参考答案：** Flat Tensor 只改变物理存储布局，不改变逻辑序列边界。Attention Backend 根据 `cu_seqlens_q/cu_seqlens_k` 知道每个请求在 Flat Tensor 中的起止区间，Kernel 分别对每段执行因果 Attention，因此 A 的 Query 不会把 B 的 K/V 当成同一序列历史。
+
+### 问题 2：为什么 `input_mapping` 使用 Slot，而不是 UID？
+
+**参考答案：** Token Pool 与 Page Table 的第一维就是可复用的 Table Slot；真正读取 Tensor 时需要的是“去哪一行取数据”。UID 是长期请求身份，不一定连续，也不等于当前物理行号。调度器通过 `Req.table_idx` 把稳定身份映射到当前 Slot。
+
+### 问题 3：若 `return_all_logits=True`，LM Head 为什么不能只取 Last Indices？
+
+**参考答案：** Last Indices 只适合 Serving Prefill，因为生成下一个 Token 只需要每条 Prompt 的最后位置。Teacher-forced 评分或诊断可能需要序列中每个位置的 Logits，此时提前丢掉历史 Hidden 就无法计算逐 Token 条件概率。
+
+### 问题 4：Chunked Prefill 时 `cached_len/extend_len` 如何变化？
+
+**参考答案：** 第一个 Chunk 前 `cached_len=0`，`extend_len` 是首段长度；执行后该段进入 KV，`cached_len` 前进到 Chunk 末尾。下一轮 `device_len` 可以已经包含更多 Prompt Token，而 `extend_len=device_len-cached_len` 只表示当前 Chunk 尚未缓存的部分。核心不变量仍是只为 `[cached_len, device_len)` 分配 Page 和执行 Forward。
+
+### 问题 5：Pinned Memory 与真正的 CPU/GPU overlap 之间还缺什么？
+
+**参考答案：** Pinned Memory 和 `non_blocking=True` 只是允许异步拷贝。要真正与 GPU 计算重叠，还需要独立 CUDA Stream、合理的事件依赖，以及 CPU 提前准备下一 Batch，使 H2D 拷贝能与当前 Kernel 同时进行；当前单 Stream 流程不自动获得这些收益。
 
 ## 12. 一句话复述
 
