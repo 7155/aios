@@ -35,7 +35,7 @@ input_ids       初始 Prompt Tensor（主要保留身份/长度）
 cached_len      已经写入 KV Cache 的 Token 数
 device_len      当前 Token Pool 中已经存在的 Token 数
 max_device_len  Prompt + 最大输出长度
-created         generated 保存已采样 Token，Page 释放后仍存在
+generated       已采样 Token；Page 释放后仍存在
 ```
 
 必须始终满足：
@@ -180,13 +180,27 @@ python resources/lesson-19-runtime-data-model/run_lesson19.py
 
 错。它形成单实例、不可嵌套的执行假设，是未来并发扩展的重要边界。
 
-## 9. 面试追问
+## 9. 检验问题与参考答案
 
-1. 为什么 `generated` 必须独立保存，不能最终从 Token Pool 读取？
-2. 请求完成后 Page/Slot 立即释放，结果为什么仍能返回？
-3. `remain_len=0` 时，最后采样 Token 是否已经写入 KV？为什么通常没有必要？
-4. 如果把 `running_reqs` 从 Set 改成 List，有哪些确定性与复杂度变化？
-5. 怎样把 Global Context 改造成多模型、多线程安全？
+### 问题 1：为什么 `generated` 必须独立保存，不能最终从 Token Pool 读取？
+
+**参考答案：** 请求完成后 `TableManager.free()` 会释放该 Slot，后续请求可以覆盖同一行的 Token Pool。若结果只依赖 Token Pool，完成请求的输出可能在返回前被新请求覆盖。`generated` 把已采样 Token 从可复用运行时存储中复制到请求自己的持久结果状态。
+
+### 问题 2：请求完成后 Page/Slot 立即释放，结果为什么仍能返回？
+
+**参考答案：** 因为返回结果依赖的是 `Req.generated`，不是已释放的 KV Page 或 Token Pool Slot。Page/Slot 只是运行时工作区，完成后可以立即归还；结果身份已经转移到 `Req` 对象。
+
+### 问题 3：`remain_len=0` 时，最后采样 Token 是否已经写入 KV？为什么通常没有必要？
+
+**参考答案：** 通常还没有。最后一次 Forward 产生 Logits 后采出最后 Token，`complete_one()` 让 `device_len` 加一，此时没有下一步 Decode，自然也不需要再为这个 Token 计算 K/V。KV Cache 只为未来 Attention 服务；没有未来 Token 时继续写 Cache 是纯浪费。
+
+### 问题 4：如果把 `running_reqs` 从 Set 改成 List，会有什么变化？
+
+**参考答案：** List 可以提供更稳定、可预测的遍历顺序，但删除指定请求通常是线性复杂度；Set 按对象身份增删更直接，但顺序不是 API 契约。若采样结果依赖 Batch Row 顺序，还必须额外保证随机流与请求身份绑定，不能依赖容器顺序。
+
+### 问题 5：怎样把 Global Context 改造成多模型、多线程安全？
+
+**参考答案：** 可以把 Context 从进程级全局变量改为显式依赖传递、线程/任务局部 `contextvars`，或每个 Engine/Model 实例持有自己的执行 Context。关键是让“当前 Batch 属于哪个模型/线程”成为明确所有权，避免两个 Forward 同时覆盖 `_batch`。
 
 ## 10. 一句话复述
 
