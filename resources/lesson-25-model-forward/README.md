@@ -178,13 +178,27 @@ python resources/lesson-25-model-forward/run_lesson25.py
 
 当前边界相反：模型层负责 QKV/Norm/RoPE/O-Proj，Backend 负责 Cache 写入、Metadata 和 Attention Kernel。
 
-## 10. 面试追问
+## 10. 检验问题与参考答案
 
-1. 为什么 Fused Add+Norm 要原地修改 `x` 与 `residual`？
-2. 如果先 Norm 分支输出再 Add，是否仍等价？
-3. 为什么 Final Norm 还必须把最后 MLP 增量加回 Residual？
-4. Merged QKV 权重按哪个维度拼接？
-5. AIOS 无 Backward，为什么仍值得理解 Residual Jacobian？
+### 问题 1：为什么 Fused Add+Norm 要原地修改 `x` 与 `residual`？
+
+**参考答案：** 目的不是改变数学公式，而是减少中间 Tensor 的显存读写和额外 Kernel Launch。长期 `residual` 保存未归一化主线，`x` 保存当前分支增量；Fused Kernel 可以在一次读写中完成 `residual += x` 和 `x = RMSNorm(residual)`，避免先写一份 Add 结果再读回来做 Norm。
+
+### 问题 2：如果先 Norm 分支输出再 Add，是否仍等价？
+
+**参考答案：** 不等价。Pre-Norm 的语义是先对主线 `h` 归一化，再让分支计算 `F(N(h))`，最后把分支增量加回未归一化的 `h`。若改成 `h + N(F(...))`，Norm 的位置和输入都变了，模型函数不同，训练好的权重不再对应原结构。
+
+### 问题 3：为什么 Final Norm 还必须把最后 MLP 增量加回 Residual？
+
+**参考答案：** 最后一层 MLP 返回的 `hidden_states` 仍只是 `Δ_mlp`，长期主线还在 `residual`。如果 Final Norm 只归一化 `residual` 而不先加上最后增量，就会漏掉整块最后 MLP 的贡献。Fused Final Norm负责完成最后一次 `residual += hidden_states` 再归一化。
+
+### 问题 4：Merged QKV 权重按哪个维度拼接？
+
+**参考答案：** 独立 `q_proj/k_proj/v_proj` 都对同一个 Hidden 输入做 Linear，区别在输出宽度，因此融合时沿输出维，也就是权重矩阵的第 0 维拼接。MiniMind-IME 中输出宽度是 `768 + 256 + 256 = 1280`，一次 GEMM 后再按这三个区间 split。
+
+### 问题 5：AIOS 无 Backward，为什么仍值得理解 Residual Jacobian？
+
+**参考答案：** 因为推理实现必须保持训练时函数完全等价。理解 Jacobian 能解释为什么模型训练采用 Pre-Norm Residual，也能帮助判断某个“推理融合”到底只是实现优化，还是偷偷改变了模型结构。它还帮助理解为什么不能随意移动 Norm、Add 或 Residual 顺序。
 
 ## 11. 一句话复述
 
