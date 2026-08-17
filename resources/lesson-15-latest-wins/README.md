@@ -30,9 +30,9 @@ t0 候选返回
 
 所以正确语义不是“每个请求都得到结果”，而是：
 
-\[
+```math
 \boxed{\text{只有当前最大 generation\_id 可以交付}}
-\]
+```
 
 旧请求可以做过一些 GPU 工作，但它的结果必须被标记为 cancelled，并尽快释放不再需要的 suffix KV。
 
@@ -268,13 +268,27 @@ AIOS_IME_MODEL=/path/to/model pytest -q \
   tests/test_ime_gpu.py::test_latest_generation_cancels_old_group_and_frees_pages
 ```
 
-## 12. 面试追问
+## 12. 检验问题与参考答案
 
-1. 为什么 cancellation check 放在 token step 边界，而不是候选完成后？
-2. `_generation_lock` 与 `_run_lock` 合并成一个锁会怎样影响新按键取消延迟？
-3. 如果 `finally` 忘记释放 suffix Page，为什么短测试可能仍通过？
-4. latest-wins 与普通请求超时、用户主动 abort 有何共同点和区别？
-5. 如果未来支持多个本地 App Client，进程级单一 Prefix Cache 应怎样重新设计所有权？
+### 问题 1：为什么 cancellation check 放在 token step 边界，而不是候选完成后？
+
+**参考答案：** 如果只在候选全部生成完成后检查，旧 generation 虽然不会展示，但仍会继续做所有 Decode 工作。放在 token step 边界可以在当前已发射 GPU 工作结束后尽快停止下一步，既符合 CUDA 的可控边界，又能及时止损计算和 suffix KV。
+
+### 问题 2：`_generation_lock` 与 `_run_lock` 合并成一个锁会怎样？
+
+**参考答案：** 新按键如果必须先等旧 GPU 运行结束才能拿到同一个锁，就无法立即把旧 generation 标成 cancelled，取消延迟会接近旧请求剩余运行时间。拆锁后，短锁只负责世代身份切换，长锁继续保护 GPU/Prefix 可变状态。
+
+### 问题 3：如果 `finally` 忘记释放 suffix Page，为什么短测试可能仍通过？
+
+**参考答案：** 单次请求可能还有足够空闲 Page，功能输出照样正常；泄漏会在多轮请求后逐渐耗尽 Cache，最终才表现为分配失败或显存异常。因此资源生命周期必须有显式不变量，例如 reset 后 `available_size == num_pages`。
+
+### 问题 4：latest-wins 与普通请求超时有什么共同点和区别？
+
+**参考答案：** 两者都需要让已无价值的工作尽快停止并回收资源。区别在于 latest-wins 的触发条件是“出现了更新的用户输入”，旧请求即使没超时也立刻失效；普通超时则通常由绝对时间预算触发，而且没有天然的新请求可以继承 Prefix 状态。
+
+### 问题 5：为什么取消旧组时不直接释放全部 Prefix Page？
+
+**参考答案：** 因为 Prefix KV 的生命周期与候选分支不同。新按键往往与旧 Prefix 有长 token-LCP，稳定部分仍属于新输入。正确做法是先取消旧分支和输出资格，再由新 Prefix 的 `_prepare_prefix` 判断哪些 Prefix Page 继续保留、哪些尾页释放。
 
 ## 13. 一句话复述
 
