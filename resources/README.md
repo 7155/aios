@@ -1,8 +1,8 @@
 # AIOS 课程导航：从通用推理引擎到本地输入法 Runtime
 
-> 当前 CUDA 教材扩展基线：`c335497c6bf67a4dc8cb5ba748ace7b7c1cb77af`（`main`）
+> 当前高级 CUDA 教材扩展基线：`1d63bca4cf24885a1b15897003e3481db53d8ada`（`main`）
 >
-> 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～36 课从零掌握 CUDA、Triton、FlashInfer 与后续推理优化。
+> 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～44 课从零掌握 CUDA、Triton、FlashInfer、GPU 性能诊断与后续扩展。
 
 ## 第一篇：通用推理引擎基础
 
@@ -50,58 +50,46 @@
 | 27 | [IME 主状态机](lesson-27-ime-engine-code-reading/README.md) | `ime.py` |
 | 28 | [权重加载与 Packing](lesson-28-weight-loading/README.md) | `weight.py` + `BaseOP` |
 
-## 第四篇：CUDA 与后续推理优化
+## 第四篇：CUDA 与推理优化
 
 > [打开 CUDA 长篇导航与验证说明](cuda-optimization/README.md)
 >
-> 这一篇按“完全不打开源码也能学”的标准写：关键函数直接放在 README 中，逐行解释 Pointer、Stride、Shape、内存流量与 GPU 执行顺序。
+> README 直接包含核心代码、逐行解释、Shape、地址、算术强度、资源生命周期与带答案的检验问题，不要求先打开源码。
 
 | 课次 | 教材 | 核心问题 |
 |---:|---|---|
-| 29 | [CUDA 从零](lesson-29-cuda-foundations/README.md) | Host/Device/Kernel/Block/Warp/Stream 到底是什么？ |
-| 30 | [Triton KV Scatter](lesson-30-triton-kv-store/README.md) | `store_cache.py` 每一行如何把 K/V 写入 Page？ |
+| 29 | [CUDA 从零](lesson-29-cuda-foundations/README.md) | Host/Device/Kernel/Block/Warp/Stream 是什么？ |
+| 30 | [Triton KV Scatter](lesson-30-triton-kv-store/README.md) | `store_cache` 怎样计算地址并写 Page？ |
 | 31 | [Fusion 与显存流量](lesson-31-fusion-memory-traffic/README.md) | QKV、SwiGLU、Residual+RMSNorm 为什么融合？ |
-| 32 | [FlashInfer Paged Attention](lesson-32-flashinfer-paged-attention/README.md) | `cu_seqlens/indices/plan/run` 怎样进入 GPU Kernel？ |
-| 33 | [异步、计时与 Profiling](lesson-33-async-benchmark-profiling/README.md) | 为什么不同步会测到假延迟，怎样找真正瓶颈？ |
-| 34 | [CUDA Graph](lesson-34-cuda-graphs/README.md) | Capture/Replay 为什么适合小模型，又为何与 Ragged Shape 冲突？ |
-| 35 | [量化](lesson-35-quantization/README.md) | BF16/FP8/INT8/INT4、Scale 与 Quantized GEMM 怎样工作？ |
-| 36 | [Speculative 与路线图](lesson-36-speculative-roadmap/README.md) | Draft/Verify 何时加速，MTP 为什么不等于在线多 Token？ |
+| 32 | [FlashInfer Paged Attention](lesson-32-flashinfer-paged-attention/README.md) | `cu_seqlens/indices/plan/run` 怎样进入 Kernel？ |
+| 33 | [异步、计时与 Profiling](lesson-33-async-benchmark-profiling/README.md) | 为什么不同步会测到假延迟？ |
+| 34 | [CUDA Graph](lesson-34-cuda-graphs/README.md) | Capture/Replay 与 Ragged Shape 怎样冲突？ |
+| 35 | [量化](lesson-35-quantization/README.md) | BF16/FP8/INT8/INT4 与 Scale 怎样工作？ |
+| 36 | [Speculative Decoding](lesson-36-speculative-roadmap/README.md) | Draft/Verify 何时加速？ |
+| 37 | [SM、Warp 与 Occupancy](lesson-37-sm-warp-occupancy/README.md) | GPU 怎样用多个 Warp 隐藏延迟？ |
+| 38 | [显存层级与合并访存](lesson-38-memory-hierarchy-coalescing/README.md) | Coalescing 与 Bank Conflict 怎样发生？ |
+| 39 | [GEMM 与 Tensor Core](lesson-39-gemm-tensor-cores/README.md) | Prefill/Decode 的 M/N/K 为什么导致不同瓶颈？ |
+| 40 | [Roofline 与瓶颈诊断](lesson-40-roofline-bottlenecks/README.md) | Latency/Memory/Compute-bound 怎样区分？ |
+| 41 | [FlashAttention 在线 Softmax](lesson-41-flashattention-online-softmax/README.md) | 不存 T×T Matrix 怎样仍精确计算？ |
+| 42 | [Triton Matmul 与 Autotune](lesson-42-triton-matmul-autotune/README.md) | Tile、Pointer、Warp、Stage 怎样调优？ |
+| 43 | [CUDA Allocator 与碎片](lesson-43-cuda-memory-allocator/README.md) | allocated/reserved/nvidia-smi 为什么不同？ |
+| 44 | [Tensor Parallel 与 NCCL](lesson-44-tensor-parallel-nccl/README.md) | Column/Row Parallel 与 AllReduce 怎样协作？ |
 
 ## README 教材标准
 
-新增课程遵循：
-
 ```text
-README 直接包含核心源码
+README 直接包含核心代码
 → 一段一段解释输入/地址/Shape/状态
 → 给手算和 CPU 实验
 → 标明当前已实现与未实现边界
 → 给检验问题与完整参考答案
 ```
 
-不要求学习者再打开源文件才能理解主机制；源码链接只用于核验和继续深入。
-
-## 公式与图示标准
-
-块级公式统一使用 GitHub fenced math：
-
-````markdown
-```math
-E = D - C
-```
-````
-
-难懂状态机、Flat Batch、Page 所有权、CUDA Execution、Triton Scatter 和 CUDA Graph 均配有 SVG；关键解释仍完整写在 README。
-
 ## 一键验证
 
 ```bash
-for script in resources/lesson-{18..28}-*/run_lesson*.py; do
-  python "$script"
-done
 python resources/code-reading/validate_code_reading.py
-
 python resources/cuda-optimization/validate_cuda_course.py
 ```
 
-CPU 实验验证机制，不冒充 CUDA 性能；真实 GPU 行为仍由项目测试、Benchmark 与冻结评测负责。
+CPU 实验验证机制，不冒充 CUDA 性能；真实 GPU 收益仍需项目测试、Profiler、Benchmark 与冻结评测。
