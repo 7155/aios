@@ -114,6 +114,24 @@ Top 3：，下次见面时一起看看。
 
 ## 性能
 
+### 速度总览：0.1B 极速版对比 Qwen3-0.6B
+
+同一块 RTX 4080 Laptop GPU、两侧均为 BF16、同一批 30 条冻结前缀、固定 8 路候选和
+12-token 上限：
+
+| 模型 | 参数量 | 完整 Top-3 p50 | 完整 Top-3 p95 | 峰值 allocated | 满三条且互异 |
+|---|---:|---:|---:|---:|---:|
+| **MiniMind-IME 0.1B 极速版** | **100.69M** | **83.24 ms** | **96.24 ms** | **238.60 MiB** | **96.67%** |
+| Qwen3-0.6B | 596.05M | 170.85 ms | 197.96 ms | 1,283.99 MiB | 86.67% |
+
+Qwen3-0.6B 的 p50/p95 分别是 MiniMind-IME 0.1B 的 `2.05×/2.06×`；MiniMind-IME 峰值
+allocated 低 `81.42%`。这里比较的是完整 CandidateGroup Top-3，而不是把首 token 或单次
+forward 当成整次请求。历史 0.06B 的约 7～9 ms 数字是首 token 延迟，其完整 Top-3
+p50/p95 为 `63.48/138.88 ms`，两种口径不能混用。
+
+完整协议与复现命令见
+[0.1B vs Qwen3-0.6B BF16 延迟报告](reports/aios_ime_100m_vs_qwen06b_speed_20260821.md)。
+
 ### 0.214B Block AttnRes
 
 最新部署模型包含 32 个 Transformer layers、8 个 AttnRes blocks。每层在 Attention 和 MLP
@@ -426,19 +444,20 @@ print([candidate.text for candidate in result.candidates])
 Top-3 和全部原始候选，并记录完整 CandidateGroup 延迟、GPU 事件延迟、active tokens/s、
 实际采样路数、补采样轮次、Prefix KV 复用量与峰值显存。
 
-比较 0.214B Block AttnRes 与 0.1B 标准残差模型：
+默认比较 MiniMind-IME 0.1B 极速版与 Qwen3-0.6B；最新 0.214B Block AttnRes 质量版和
+Qwen3-4B 保留在快速选择框中：
 
 ```bash
 source scripts/activate_aios.sh
 
 python scripts/run_ime_compare_frontend.py \
-  --model-a /path/to/minimind-ime-0.214b-aios \
-  --label-a '0.214B Block AttnRes' \
-  --backend-a triton \
+  --model-a /path/to/minimind-ime-0.1b-aios \
+  --label-a 'MiniMind-IME 0.1B 极速版' \
+  --backend-a default \
   --model-b /path/to/Qwen3-0.6B \
   --label-b 'Qwen3-0.6B' \
   --backend-b default \
-  --profile '0.1B Standard=/path/to/minimind-ime-0.1b-aios' \
+  --profile '0.214B AttnRes 质量版=/path/to/minimind-ime-0.214b-aios' \
   --profile 'Qwen3-4B=/path/to/Qwen3-4B'
 ```
 
@@ -448,10 +467,10 @@ python scripts/run_ime_compare_frontend.py \
 http://127.0.0.1:7860
 ```
 
-`--profile NAME=LOCAL_PATH` 会把其他本地模型加入 A/B 两侧的快速选择框，适合在当前
-0.214B、0.1B、Qwen3-0.6B 和 Qwen3-4B 之间切换。运行时统一使用 BF16；页面会在模型名与
-实测架构信息中显示精度。也可以让 A、B 指向同一个 0.214B 模型，只改变 `--backend-a` 和
-`--backend-b`，对比 `triton`、`compiled`、`eager` 或 `reference`。
+`--profile NAME=LOCAL_PATH` 会把其他本地模型加入 A/B 两侧的快速选择框。0.1B Standard
+承担低延迟展示，0.214B Block AttnRes 是最新质量/架构实验模型；运行时统一使用 BF16，
+页面会在模型名与实测架构信息中显示精度。也可以让 A、B 指向同一个 0.214B 模型，只改变
+`--backend-a` 和 `--backend-b`，对比 `triton`、`compiled`、`eager` 或 `reference`。
 
 每个栏位使用独立子进程持有 AIOS 全局 CUDA Context；A/B 默认在同一 GPU 上串行推理，
 不用并发争抢后的延迟作比较。输入框、运行按钮和 Top-3 结果连续排列；模型目录与生成参数
@@ -463,8 +482,8 @@ http://127.0.0.1:7860
 - “只运行 A / B”：快速查看单侧结果，不重跑另一侧。
 - “每次运行前清空 Prefix KV”：开启后测独立前缀；关闭后保留相邻按键 token-LCP 复用。
 
-首次请求可能包含 Triton 或 `torch.compile` 的 JIT 成本，因此页面会显示“冷启动”；模型
-加载耗时单独记录，不计入 `ImeCompletionEngine.latency_ms`。点击“释放模型显存”会关闭
+每个模型 worker 在接受首个计时请求前先执行一次 2-token CUDA 预热，模型加载与一次性
+JIT 耗时单独记录，不计入 `ImeCompletionEngine.latency_ms`。点击“释放模型显存”会关闭
 两个 worker。人工选择的“A 更好 / B 更好 / 差不多 / 都不好”只保存在当前浏览器，可导出
 为 JSONL，便于后续整理真实偏好数据。
 

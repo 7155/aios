@@ -363,7 +363,7 @@ function renderSlot(slot, envelope, prefix) {
   const runtime = result.runtime || {};
   $(`result-label-${slot}`).textContent = runtime.label || $(`label-${slot}`).value;
   $(`result-meta-${slot}`).textContent = architectureLabel(runtime);
-  setStatus(slot, "success", runtime.cold_request ? "完成 · 冷启动" : "完成");
+  setStatus(slot, "success", `完成 · ${formatNumber(result.latency_ms)} ms`);
   const candidates = $(`candidates-${slot}`);
   candidates.replaceChildren();
   if (!result.candidates?.length) {

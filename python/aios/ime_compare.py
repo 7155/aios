@@ -27,11 +27,11 @@ SLOT_IDS = ("a", "b")
 DEFAULT_EXAMPLES = (
     "机器学习是",
     "深度学习的核心是",
-    "这个报错我已经定位到了，",
-    "刚才看到你发的消息，",
-    "周末如果天气不错，",
-    "今天下班有点晚，",
-    "最近在学习大模型训练，我发现",
+    "没关系，你先忙你的，",
+    "今天的任务先做到这里，剩下的",
+    "监督数据还不完整，需要",
+    "先把重复数据删掉，再",
+    "刚才我翻到我们以前一起拍的照片，有几张现在看还是挺有意思",
 )
 
 
@@ -328,6 +328,24 @@ def _worker_main(connection: Any, spec_payload: dict[str, Any]) -> None:
         llm = LLM(spec.model_path, **llm_kwargs)
         engine = ImeCompletionEngine(llm)
         load_ms = (time.perf_counter() - load_started) * 1000.0
+        # Compile/load lazy CUDA kernels before the first measured user request.
+        # The worker startup may take longer, but ImeCompletionResult.latency_ms
+        # then represents warm steady-state inference instead of one-time JIT.
+        warmup_started = time.perf_counter()
+        engine.complete(
+            "这是预热输入",
+            ImeGenerationConfig(
+                sampling_attempts=8,
+                max_sampling_attempts=8,
+                refill_batch_size=8,
+                max_new_tokens=2,
+                min_new_tokens=0,
+                seed=0,
+            ),
+        )
+        engine.reset_prefix_cache()
+        torch.cuda.synchronize(llm.device)
+        warmup_ms = (time.perf_counter() - warmup_started) * 1000.0
         # AIOS models inherit the lightweight BaseOP rather than nn.Module.
         # Its state_dict contains each loaded tensor once (including tied
         # embedding only once), which is the correct serving parameter count.
@@ -337,6 +355,7 @@ def _worker_main(connection: Any, spec_payload: dict[str, Any]) -> None:
             {
                 "kind": "ready",
                 "load_ms": load_ms,
+                "warmup_ms": warmup_ms,
                 "metadata": metadata,
             }
         )
@@ -385,6 +404,7 @@ def _worker_main(connection: Any, spec_payload: dict[str, Any]) -> None:
                     "configured_backend": spec.backend,
                     "effective_backend": metadata["attnres_backend"],
                     "model_load_ms": load_ms,
+                    "model_warmup_ms": warmup_ms,
                     "api_wall_ms": api_wall_ms,
                     "active_tokens_per_second": active_tokens_per_second,
                     "gpu_active_tokens_per_second": gpu_active_tokens_per_second,
@@ -392,7 +412,8 @@ def _worker_main(connection: Any, spec_payload: dict[str, Any]) -> None:
                     "cuda_reserved_mib": torch.cuda.memory_reserved(llm.device) / 2**20,
                     "cuda_peak_allocated_mib": torch.cuda.max_memory_allocated(llm.device)
                     / 2**20,
-                    "cold_request": request_index == 0,
+                    "cold_request": False,
+                    "first_request": request_index == 0,
                     "request_index": request_index + 1,
                     "model": metadata,
                 }
@@ -657,13 +678,15 @@ class DemoRegistry:
                 "configured_backend": spec.backend,
                 "effective_backend": spec.backend,
                 "model_load_ms": 0.0,
+                "model_warmup_ms": 0.0,
                 "api_wall_ms": latency_ms + 1.5,
                 "active_tokens_per_second": active_tokens * 1000.0 / latency_ms,
                 "gpu_active_tokens_per_second": active_tokens * 1000.0 / (latency_ms - 4.2),
                 "cuda_allocated_mib": 468.0 if slot_id == "a" else 227.0,
                 "cuda_reserved_mib": 512.0 if slot_id == "a" else 256.0,
                 "cuda_peak_allocated_mib": 474.0 if slot_id == "a" else 231.0,
-                "cold_request": self._request_count[slot_id] == 1,
+                "cold_request": False,
+                "first_request": self._request_count[slot_id] == 1,
                 "request_index": self._request_count[slot_id],
                 "demo": True,
                 "model": {

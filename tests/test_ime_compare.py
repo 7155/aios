@@ -121,6 +121,7 @@ def test_demo_service_returns_two_complete_top3_results() -> None:
     assert initial["examples"][0] == "机器学习是"
     assert len(initial["profiles"]) == 2
     assert response["results"]["a"]["result"]["runtime"]["model"]["dtype"] == "bfloat16"
+    assert response["results"]["a"]["result"]["runtime"]["model_warmup_ms"] == 0.0
 
 
 def test_json_safe_replaces_non_finite_scores() -> None:
