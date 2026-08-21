@@ -435,9 +435,11 @@ python scripts/run_ime_compare_frontend.py \
   --model-a /path/to/minimind-ime-0.214b-aios \
   --label-a '0.214B Block AttnRes' \
   --backend-a triton \
-  --model-b /path/to/minimind-ime-0.1b-aios \
-  --label-b '0.1B Standard' \
-  --backend-b default
+  --model-b /path/to/Qwen3-0.6B \
+  --label-b 'Qwen3-0.6B' \
+  --backend-b default \
+  --profile '0.1B Standard=/path/to/minimind-ime-0.1b-aios' \
+  --profile 'Qwen3-4B=/path/to/Qwen3-4B'
 ```
 
 浏览器打开：
@@ -446,9 +448,14 @@ python scripts/run_ime_compare_frontend.py \
 http://127.0.0.1:7860
 ```
 
-也可以让 A、B 指向同一个 0.214B 模型，只改变 `--backend-a` 和 `--backend-b`，对比
-`triton`、`compiled`、`eager` 或 `reference`。每个栏位使用独立子进程持有 AIOS 全局
-CUDA Context；A/B 默认在同一 GPU 上串行推理，不用并发争抢后的延迟作比较。
+`--profile NAME=LOCAL_PATH` 会把其他本地模型加入 A/B 两侧的快速选择框，适合在当前
+0.214B、0.1B、Qwen3-0.6B 和 Qwen3-4B 之间切换。运行时统一使用 BF16；页面会在模型名与
+实测架构信息中显示精度。也可以让 A、B 指向同一个 0.214B 模型，只改变 `--backend-a` 和
+`--backend-b`，对比 `triton`、`compiled`、`eager` 或 `reference`。
+
+每个栏位使用独立子进程持有 AIOS 全局 CUDA Context；A/B 默认在同一 GPU 上串行推理，
+不用并发争抢后的延迟作比较。输入框、运行按钮和 Top-3 结果连续排列；模型目录与生成参数
+默认折叠在结果下方，需要更换比较对象时再展开。
 
 页面支持三种使用方式：
 

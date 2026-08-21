@@ -47,6 +47,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kv-cache-max-tokens", type=int, default=512)
     parser.add_argument("--attention-workspace-mib", type=int, default=8)
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument(
+        "--profile",
+        action="append",
+        default=[],
+        metavar="NAME=LOCAL_PATH",
+        help="增加一个可在前端 A/B 两侧快速选择的本地 BF16 模型",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument(
@@ -91,6 +98,39 @@ def build_default_slots(args: argparse.Namespace) -> dict[str, ModelSpec]:
             require_local_path=not args.demo,
         ),
     }
+
+
+def build_profiles(
+    args: argparse.Namespace,
+    default_slots: dict[str, ModelSpec],
+) -> list[ModelSpec]:
+    profiles = list(default_slots.values())
+    for raw_profile in args.profile:
+        if "=" not in raw_profile:
+            raise ValueError(f"--profile 必须使用 NAME=LOCAL_PATH 格式：{raw_profile}")
+        label, model_path = raw_profile.split("=", 1)
+        profiles.append(
+            ModelSpec.from_payload(
+                {
+                    "label": label.strip(),
+                    "model_path": model_path.strip(),
+                    "backend": "default",
+                    "kv_cache_max_tokens": args.kv_cache_max_tokens,
+                    "attention_workspace_mib": args.attention_workspace_mib,
+                    "device": args.device,
+                },
+                require_local_path=not args.demo,
+            )
+        )
+    unique_profiles: list[ModelSpec] = []
+    seen: set[tuple[object, ...]] = set()
+    for profile in profiles:
+        key = profile.runtime_key
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_profiles.append(profile)
+    return unique_profiles
 
 
 def make_handler(service: ImeCompareService) -> type[BaseHTTPRequestHandler]:
@@ -190,7 +230,11 @@ def main() -> None:
     if not STATIC_ROOT.is_dir():
         raise SystemExit(f"前端静态目录不存在：{STATIC_ROOT}")
     slots = build_default_slots(args)
-    service = ImeCompareService(slots, demo=args.demo)
+    try:
+        profiles = build_profiles(args, slots)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+    service = ImeCompareService(slots, profiles=profiles, demo=args.demo)
     server = ThreadingHTTPServer((args.host, args.port), make_handler(service))
     server.daemon_threads = True
     display_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host

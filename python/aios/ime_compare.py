@@ -25,12 +25,13 @@ from .ime import ImeGenerationConfig
 ATTNRES_BACKENDS = {"default", "reference", "eager", "compiled", "triton"}
 SLOT_IDS = ("a", "b")
 DEFAULT_EXAMPLES = (
-    "我刚到小区门口，",
-    "这个报错我看了一下，",
-    "周末如果不下雨，",
-    "你把改好的版本",
-    "其实深度学习就是",
+    "机器学习是",
+    "深度学习的核心是",
+    "这个报错我已经定位到了，",
+    "刚才看到你发的消息，",
+    "周末如果天气不错，",
     "今天下班有点晚，",
+    "最近在学习大模型训练，我发现",
 )
 
 
@@ -304,6 +305,7 @@ def _model_metadata(llm: Any, parameter_count: int) -> dict[str, Any]:
         "vocab_size": config.vocab_size,
         "context_length": config.max_position_embeddings,
         "parameter_count": parameter_count,
+        "dtype": str(llm.dtype).removeprefix("torch."),
     }
 
 
@@ -403,7 +405,7 @@ def _worker_main(connection: Any, spec_payload: dict[str, Any]) -> None:
                         "message": f"{type(error).__name__}: {error}",
                     }
                 )
-    except EOFError:
+    except (EOFError, KeyboardInterrupt):
         pass
     except Exception as error:
         try:
@@ -675,6 +677,7 @@ class DemoRegistry:
                     "vocab_size": 16384,
                     "context_length": 512,
                     "parameter_count": 214_063_360 if slot_id == "a" else 100_000_000,
+                    "dtype": "bfloat16",
                 },
             },
         }
@@ -739,9 +742,11 @@ class ImeCompareService:
         self,
         default_slots: dict[str, ModelSpec],
         *,
+        profiles: list[ModelSpec] | None = None,
         demo: bool = False,
     ) -> None:
         self.default_slots = default_slots
+        self.profiles = profiles or list(default_slots.values())
         self.demo = demo
         self.registry: WorkerRegistry | DemoRegistry = DemoRegistry() if demo else WorkerRegistry()
         self._compare_lock = threading.Lock()
@@ -750,6 +755,7 @@ class ImeCompareService:
         return {
             "demo": self.demo,
             "slots": {slot_id: asdict(spec) for slot_id, spec in self.default_slots.items()},
+            "profiles": [asdict(profile) for profile in self.profiles],
             "generation": asdict(GenerationSettings()),
             "examples": list(DEFAULT_EXAMPLES),
             "order": "a_then_b",

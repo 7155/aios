@@ -70,12 +70,90 @@
               <div class="example-list" id="example-list" aria-label="示例前缀"></div>
               <span class="char-count"><strong id="char-count">0</strong> / 512</span>
             </div>
+
+            <div class="action-row">
+              <button class="primary-button" type="submit" id="compare-button">
+                <span>运行 A / B 对比</span>
+                <span class="button-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="secondary-button" type="button" id="run-a-button">只运行 A</button>
+              <button class="secondary-button" type="button" id="run-b-button">只运行 B</button>
+              <button class="text-button" type="button" id="unload-button">释放模型显存</button>
+            </div>
+            <p class="form-error" id="form-error" role="alert" hidden></p>
           </section>
 
-          <section class="model-config-section" aria-labelledby="models-heading">
-            <div class="section-heading">
+          <section class="result-section" id="result-section" aria-labelledby="results-heading">
+            <div class="section-heading result-heading">
               <div>
                 <span class="section-number">02</span>
+                <h2 id="results-heading">Top-3 结果</h2>
+              </div>
+              <span id="result-timestamp" class="section-note">等待首次推理</span>
+            </div>
+
+            <div class="comparison-strip" id="comparison-strip" hidden>
+              <div><strong id="overlap-value">—</strong><span>Top-3 重合</span></div>
+              <div><strong id="rank-value">—</strong><span>同排名一致</span></div>
+              <div><strong id="lcp-value">—</strong><span>Top-1 公共前缀</span></div>
+              <div><strong id="latency-value">—</strong><span>延迟差</span></div>
+            </div>
+
+            <div class="result-grid">
+              <article class="result-card result-a" id="result-card-a">
+                <header class="result-card-header">
+                  <div>
+                    <span class="model-letter">A</span>
+                    <div>
+                      <h3 id="result-label-a">当前模型</h3>
+                      <p id="result-meta-a">尚未运行</p>
+                    </div>
+                  </div>
+                  <span class="run-status idle" id="status-a">待运行</span>
+                </header>
+                <div class="candidate-list" id="candidates-a">
+                  <div class="empty-state">输入前缀后运行模型 A</div>
+                </div>
+                <div class="metric-grid" id="metrics-a" hidden></div>
+                <details class="raw-panel" id="raw-panel-a" hidden>
+                  <summary>查看全部原始候选</summary>
+                  <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-a"></tbody></table></div>
+                </details>
+              </article>
+
+              <article class="result-card result-b" id="result-card-b">
+                <header class="result-card-header">
+                  <div>
+                    <span class="model-letter">B</span>
+                    <div>
+                      <h3 id="result-label-b">对比模型</h3>
+                      <p id="result-meta-b">尚未运行</p>
+                    </div>
+                  </div>
+                  <span class="run-status idle" id="status-b">待运行</span>
+                </header>
+                <div class="candidate-list" id="candidates-b">
+                  <div class="empty-state">输入前缀后运行模型 B</div>
+                </div>
+                <div class="metric-grid" id="metrics-b" hidden></div>
+                <details class="raw-panel" id="raw-panel-b" hidden>
+                  <summary>查看全部原始候选</summary>
+                  <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-b"></tbody></table></div>
+                </details>
+              </article>
+            </div>
+          </section>
+
+          <details class="settings-panel">
+            <summary>
+              <span>模型与生成参数</span>
+              <span class="summary-hint">需要更换 checkpoint 或采样设置时再展开</span>
+            </summary>
+
+            <section class="model-config-section" aria-labelledby="models-heading">
+            <div class="section-heading">
+              <div>
+                <span class="section-number">SETTINGS</span>
                 <h2 id="models-heading">比较对象</h2>
               </div>
               <span class="section-note">路径改变后会自动重载该侧 worker</span>
@@ -86,7 +164,10 @@
                 <div class="model-card-heading">
                   <span class="model-letter">A</span>
                   <label for="label-a">当前模型</label>
+                  <span class="dtype-badge">BF16</span>
                 </div>
+                <label class="field-label" for="profile-a">快速选择本地模型</label>
+                <select id="profile-a" class="profile-select"></select>
                 <input id="label-a" class="model-label-input" autocomplete="off" />
                 <label class="field-label" for="model-path-a">本地部署目录</label>
                 <input id="model-path-a" class="path-input" autocomplete="off" />
@@ -108,7 +189,10 @@
                 <div class="model-card-heading">
                   <span class="model-letter">B</span>
                   <label for="label-b">对比模型</label>
+                  <span class="dtype-badge">BF16</span>
                 </div>
+                <label class="field-label" for="profile-b">快速选择本地模型</label>
+                <select id="profile-b" class="profile-select"></select>
                 <input id="label-b" class="model-label-input" autocomplete="off" />
                 <label class="field-label" for="model-path-b">本地部署目录</label>
                 <input id="model-path-b" class="path-input" autocomplete="off" />
@@ -157,84 +241,13 @@
                 <small>用于独立前缀延迟 A/B；关闭时可观察连续按键复用。</small>
               </span>
             </label>
+            </details>
           </details>
-
-          <div class="action-row">
-            <button class="primary-button" type="submit" id="compare-button">
-              <span>运行 A / B 对比</span>
-              <span class="button-arrow" aria-hidden="true">↗</span>
-            </button>
-            <button class="secondary-button" type="button" id="run-a-button">只运行 A</button>
-            <button class="secondary-button" type="button" id="run-b-button">只运行 B</button>
-            <button class="text-button" type="button" id="unload-button">释放模型显存</button>
-          </div>
-          <p class="form-error" id="form-error" role="alert" hidden></p>
         </form>
-
-        <section class="result-section" id="result-section" aria-labelledby="results-heading">
-          <div class="section-heading result-heading">
-            <div>
-              <span class="section-number">03</span>
-              <h2 id="results-heading">Top-3 结果</h2>
-            </div>
-            <span id="result-timestamp" class="section-note">等待首次推理</span>
-          </div>
-
-          <div class="comparison-strip" id="comparison-strip" hidden>
-            <div><strong id="overlap-value">—</strong><span>Top-3 重合</span></div>
-            <div><strong id="rank-value">—</strong><span>同排名一致</span></div>
-            <div><strong id="lcp-value">—</strong><span>Top-1 公共前缀</span></div>
-            <div><strong id="latency-value">—</strong><span>延迟差</span></div>
-          </div>
-
-          <div class="result-grid">
-            <article class="result-card result-a" id="result-card-a">
-              <header class="result-card-header">
-                <div>
-                  <span class="model-letter">A</span>
-                  <div>
-                    <h3 id="result-label-a">当前模型</h3>
-                    <p id="result-meta-a">尚未运行</p>
-                  </div>
-                </div>
-                <span class="run-status idle" id="status-a">待运行</span>
-              </header>
-              <div class="candidate-list" id="candidates-a">
-                <div class="empty-state">输入前缀后运行模型 A</div>
-              </div>
-              <div class="metric-grid" id="metrics-a" hidden></div>
-              <details class="raw-panel" id="raw-panel-a" hidden>
-                <summary>查看全部原始候选</summary>
-                <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-a"></tbody></table></div>
-              </details>
-            </article>
-
-            <article class="result-card result-b" id="result-card-b">
-              <header class="result-card-header">
-                <div>
-                  <span class="model-letter">B</span>
-                  <div>
-                    <h3 id="result-label-b">对比模型</h3>
-                    <p id="result-meta-b">尚未运行</p>
-                  </div>
-                </div>
-                <span class="run-status idle" id="status-b">待运行</span>
-              </header>
-              <div class="candidate-list" id="candidates-b">
-                <div class="empty-state">输入前缀后运行模型 B</div>
-              </div>
-              <div class="metric-grid" id="metrics-b" hidden></div>
-              <details class="raw-panel" id="raw-panel-b" hidden>
-                <summary>查看全部原始候选</summary>
-                <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-b"></tbody></table></div>
-              </details>
-            </article>
-          </div>
-        </section>
 
         <section class="feedback-panel" id="feedback-panel" hidden aria-labelledby="feedback-heading">
           <div>
-            <span class="section-number">04</span>
+            <span class="section-number">03</span>
             <h2 id="feedback-heading">你的判断</h2>
             <p>记录哪一侧更自然，数据只保存在当前浏览器，可导出为 JSONL。</p>
           </div>

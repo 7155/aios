@@ -79,14 +79,60 @@ function setInputValue(id, value) {
   }
 }
 
+function profileMatchesSlot(profile, slot) {
+  return profile.model_path === slot.model_path && profile.backend === slot.backend;
+}
+
+function applyProfile(slot, profileIndex) {
+  if (profileIndex === "custom") return;
+  const profile = state.config.profiles[Number(profileIndex)];
+  if (!profile) return;
+  setInputValue(`label-${slot}`, profile.label);
+  setInputValue(`model-path-${slot}`, profile.model_path);
+  setInputValue(`backend-${slot}`, profile.backend);
+  $(`result-label-${slot}`).textContent = profile.label;
+}
+
+function hydrateProfiles(slot, selectedSlot) {
+  const select = $(`profile-${slot}`);
+  select.replaceChildren();
+  state.config.profiles.forEach((profile, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = `${profile.label} · BF16`;
+    select.append(option);
+  });
+  const custom = document.createElement("option");
+  custom.value = "custom";
+  custom.textContent = "自定义本地目录";
+  select.append(custom);
+  const selectedIndex = state.config.profiles.findIndex((profile) =>
+    profileMatchesSlot(profile, selectedSlot),
+  );
+  select.value = selectedIndex >= 0 ? String(selectedIndex) : "custom";
+  select.addEventListener("change", () => applyProfile(slot, select.value));
+  for (const id of [`label-${slot}`, `model-path-${slot}`, `backend-${slot}`]) {
+    $(id).addEventListener("input", () => {
+      const matchingIndex = state.config.profiles.findIndex(
+        (profile) =>
+          profile.model_path === $(`model-path-${slot}`).value.trim() &&
+          profile.backend === $(`backend-${slot}`).value,
+      );
+      select.value = matchingIndex >= 0 ? String(matchingIndex) : "custom";
+    });
+  }
+}
+
 function hydrateConfig(config) {
   state.config = config;
+  state.config.profiles = config.profiles || Object.values(config.slots);
   for (const slot of ["a", "b"]) {
     const model = config.slots[slot];
     setInputValue(`label-${slot}`, model.label);
     setInputValue(`model-path-${slot}`, model.model_path);
     setInputValue(`backend-${slot}`, model.backend);
     $(`result-label-${slot}`).textContent = model.label;
+    hydrateProfiles(slot, model);
   }
 
   const generationIds = {
@@ -292,9 +338,10 @@ function architectureLabel(runtime) {
   const residual = model.residual_type === "block_attnres" ? "Block AttnRes" : "Standard";
   const backend = runtime.effective_backend || runtime.configured_backend || "default";
   const layers = model.layers ? `${model.layers}L` : "?L";
+  const dtype = model.dtype === "bfloat16" ? "BF16" : String(model.dtype || "").toUpperCase();
   return model.residual_type === "block_attnres"
-    ? `${layers} · ${residual} · ${backend}`
-    : `${layers} · ${residual} residual`;
+    ? `${layers} · ${residual} · ${backend} · ${dtype}`
+    : `${layers} · ${residual} residual · ${dtype}`;
 }
 
 function renderSlot(slot, envelope, prefix) {

@@ -248,6 +248,22 @@ summary:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 
+.workspace > .result-section {
+  margin-top: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+}
+
+.input-panel .action-row {
+  padding: 24px 0 0;
+}
+
+.input-panel .form-error {
+  padding: 14px 0 0;
+}
+
 .section-heading {
   display: flex;
   align-items: end;
@@ -377,8 +393,20 @@ summary:focus-visible {
   letter-spacing: 0.06em;
 }
 
+.dtype-badge {
+  margin-left: auto;
+  padding: 4px 7px;
+  border: 1px solid var(--line-dark);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
 .model-label-input,
 .path-input,
+.profile-select,
 .advanced-grid input,
 .advanced-grid select,
 .compact-fields select {
@@ -414,6 +442,16 @@ summary:focus-visible {
   font-size: 12px;
 }
 
+.profile-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-dark);
+  border-radius: 0;
+  background: #fff;
+  font-weight: 700;
+}
+
 .compact-fields select,
 .advanced-grid input,
 .advanced-grid select {
@@ -423,6 +461,46 @@ summary:focus-visible {
 
 .advanced-panel {
   border-bottom: 1px solid var(--line);
+}
+
+.settings-panel {
+  border-top: 0;
+  background: #f7f5ee;
+}
+
+.settings-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 34px;
+  list-style: none;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.settings-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-panel > summary::before {
+  margin-right: 10px;
+  color: var(--a-color);
+  content: "+";
+  font-family: var(--mono);
+  font-size: 20px;
+}
+
+.settings-panel[open] > summary::before {
+  content: "−";
+}
+
+.settings-panel[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-panel .model-config-section {
+  background: var(--paper-strong);
 }
 
 .advanced-panel > summary {
@@ -1060,6 +1138,7 @@ footer p {
     text-align: right;
   }
 
+  .settings-panel > summary,
   .advanced-panel > summary,
   .action-row {
     padding-right: 18px;

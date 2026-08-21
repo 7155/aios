@@ -117,6 +117,10 @@ def test_demo_service_returns_two_complete_top3_results() -> None:
     assert len(response["results"]["a"]["result"]["candidates"]) == 3
     assert response["comparison"] is not None
     json.dumps(response, ensure_ascii=False, allow_nan=False)
+    initial = service.initial_config()
+    assert initial["examples"][0] == "机器学习是"
+    assert len(initial["profiles"]) == 2
+    assert response["results"]["a"]["result"]["runtime"]["model"]["dtype"] == "bfloat16"
 
 
 def test_json_safe_replaces_non_finite_scores() -> None:
@@ -132,5 +136,9 @@ def test_frontend_assets_contain_required_comparison_controls() -> None:
     assert 'id="candidates-a"' in html
     assert 'id="candidates-b"' in html
     assert 'id="unload-button"' in html
+    assert 'id="profile-a"' in html
+    assert 'id="profile-b"' in html
+    assert html.index('id="prefix-input"') < html.index('id="result-section"')
+    assert html.index('id="result-section"') < html.index('class="settings-panel"')
     assert "/api/compare" in javascript
     assert "/api/unload" in javascript
