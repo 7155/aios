@@ -237,11 +237,14 @@ def invalid_reasons(
         reasons.append("repeated_ngram")
     if compact.rstrip("，。！？；：,.!?;:").endswith(FUNCTION_WORD_ENDINGS):
         reasons.append("unfinished_fragment")
+    # A single repeated character at the join is not enough to reject a
+    # completion: ``今天`` + ``天气很好`` is natural Chinese.  Keep the hard
+    # gate only for an actual repeated run such as ``你好`` + ``好好休息``.
     if (
         prefix
         and compact
-        and prefix[-1] == compact[0]
-        and "\u3400" <= compact[0] <= "\u9fff"
+        and "\u3400" <= prefix[-1] <= "\u9fff"
+        and compact.startswith(prefix[-1] * 2)
     ):
         reasons.append("boundary_repeat")
     return tuple(reasons)

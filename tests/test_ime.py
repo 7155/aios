@@ -66,6 +66,15 @@ def test_invalid_reasons_reject_empty_assistant_and_repeat() -> None:
     assert "boundary_repeat" in invalid_reasons("好好休息", config, prefix="你好")
 
 
+def test_boundary_repeat_allows_natural_word_boundary() -> None:
+    config = ImeGenerationConfig()
+    assert "boundary_repeat" not in invalid_reasons(
+        "天气有点热，我先喝点水",
+        config,
+        prefix="今天",
+    )
+
+
 def test_mmr_selection_keeps_quality_and_diversity() -> None:
     items = [
         candidate("我晚点给你发消息", -0.10),
