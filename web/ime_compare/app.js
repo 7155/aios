@@ -231,7 +231,7 @@ function setBusy(busy, targets = ["a", "b"]) {
       loading.className = "loading-state";
       loading.textContent = "首次使用该配置时会先加载模型并编译 CUDA kernel";
       candidates.append(loading);
-      $(`metrics-${slot}`).hidden = true;
+      $(`diagnostics-${slot}`).hidden = true;
       $(`raw-panel-${slot}`).hidden = true;
     }
   }
@@ -304,7 +304,7 @@ function renderMetrics(slot, result) {
     metric(String(result.reused_prefix_tokens ?? "—"), "复用前缀 TOKENS"),
     metric(compactNumber(runtime.model?.parameter_count), "主模型参数"),
   );
-  root.hidden = false;
+  $(`diagnostics-${slot}`).hidden = false;
 }
 
 function rawStatus(candidate) {
@@ -354,7 +354,7 @@ function renderSlot(slot, envelope, prefix) {
     errorNode.className = "error-state";
     errorNode.textContent = error;
     candidates.append(errorNode);
-    $(`metrics-${slot}`).hidden = true;
+    $(`diagnostics-${slot}`).hidden = true;
     $(`raw-panel-${slot}`).hidden = true;
     return;
   }

@@ -30,7 +30,7 @@
       <main id="top">
         <section class="hero" aria-labelledby="page-title">
           <p class="eyebrow">LOCAL · SINGLE USER · TOP-3</p>
-          <h1 id="page-title">同一个中文前缀，<br />直接比较两个模型。</h1>
+          <h1 id="page-title">同一个中文前缀，直接比较两个模型。</h1>
           <p class="hero-copy">
             左右并排查看 Top-3、补采样、延迟与显存。A/B 在同一块 GPU 上串行执行，
             不让并发争抢污染结果。
@@ -114,7 +114,10 @@
                 <div class="candidate-list" id="candidates-a">
                   <div class="empty-state">输入前缀后运行模型 A</div>
                 </div>
-                <div class="metric-grid" id="metrics-a" hidden></div>
+                <details class="diagnostics-panel" id="diagnostics-a" hidden>
+                  <summary>性能与采样指标</summary>
+                  <div class="metric-grid" id="metrics-a"></div>
+                </details>
                 <details class="raw-panel" id="raw-panel-a" hidden>
                   <summary>查看全部原始候选</summary>
                   <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-a"></tbody></table></div>
@@ -135,7 +138,10 @@
                 <div class="candidate-list" id="candidates-b">
                   <div class="empty-state">输入前缀后运行模型 B</div>
                 </div>
-                <div class="metric-grid" id="metrics-b" hidden></div>
+                <details class="diagnostics-panel" id="diagnostics-b" hidden>
+                  <summary>性能与采样指标</summary>
+                  <div class="metric-grid" id="metrics-b"></div>
+                </details>
                 <details class="raw-panel" id="raw-panel-b" hidden>
                   <summary>查看全部原始候选</summary>
                   <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-b"></tbody></table></div>
