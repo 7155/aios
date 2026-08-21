@@ -264,6 +264,9 @@ def example_candidates(
 def render_markdown(report: dict[str, Any]) -> str:
     fixed = report["protocols"]["fixed8"]
     adaptive = report["protocols"]["adaptive24"]
+    label_a = adaptive["slots"]["a"]["label"]
+    label_b = adaptive["slots"]["b"]["label"]
+    row_count = report["rows"]
 
     def table(protocol: dict[str, Any]) -> str:
         lines = [
@@ -299,17 +302,17 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 ## 结论
 
-在冻结的 40 条真实短前缀上，MiniMind-IME 0.1B 的优势不只来自参数量和显存。默认自适应
-候选合同下，它的完整 Top-3 p50/p95 为
+在冻结的 {row_count} 条真实短前缀上，`{label_a}` 与 `{label_b}` 使用完全相同的输入和
+候选合同。默认自适应候选合同下，前者的完整 Top-3 p50/p95 为
 `{adaptive['slots']['a']['latency_ms']['p50']:.2f}/{adaptive['slots']['a']['latency_ms']['p95']:.2f} ms`，
-Qwen3-0.6B 为
+后者为
 `{adaptive['slots']['b']['latency_ms']['p50']:.2f}/{adaptive['slots']['b']['latency_ms']['p95']:.2f} ms`；
 后者分别为前者的
 `{adaptive['comparison']['p50_latency_ratio_b_over_a']:.2f}×/{adaptive['comparison']['p95_latency_ratio_b_over_a']:.2f}×`。
 
-Qwen3-0.6B 虽然经过补采样也能填满 Top-3，但 120 条显示候选中有
+`{label_b}` 虽然经过补采样也能填满 Top-3，但 120 条显示候选中有
 `{adaptive['slots']['b']['contract_violation_candidates']}` 条命中确定性输入法契约违规规则，
-影响 `{adaptive['slots']['b']['affected_prefixes']}/40` 个短前缀；MiniMind-IME 0.1B 为
+影响 `{adaptive['slots']['b']['affected_prefixes']}/{row_count}` 个短前缀；`{label_a}` 为
 `{adaptive['slots']['a']['contract_violation_candidates']}/120`。
 
 ## 评测合同
@@ -328,7 +331,8 @@ Qwen3-0.6B 虽然经过补采样也能填满 Top-3，但 120 条显示候选中�
 
 {table(fixed)}
 
-固定预算下，MiniMind-IME 40/40 都返回完整互异 Top-3；Qwen3-0.6B 为
+固定预算下，`{label_a}` 有 `{fixed['slots']['a']['all_distinct_rate']:.2%}` 的前缀直接返回
+完整互异 Top-3；`{label_b}` 有
 `{fixed['slots']['b']['affected_prefixes']}` 个前缀出现契约违规，且只有
 `{fixed['slots']['b']['all_distinct_rate']:.2%}` 的前缀能直接返回完整互异 Top-3。
 
@@ -336,7 +340,7 @@ Qwen3-0.6B 虽然经过补采样也能填满 Top-3，但 120 条显示候选中�
 
 {table(adaptive)}
 
-Qwen3-0.6B 通过平均 `{adaptive['slots']['b']['mean_sampling_attempts']:.2f}` 路生成填满了
+`{label_b}` 通过平均 `{adaptive['slots']['b']['mean_sampling_attempts']:.2f}` 路生成填满了
 候选栏，但违规候选并未被“多采几路”解决，p95 反而因补采样拉长到
 `{adaptive['slots']['b']['latency_ms']['p95']:.2f} ms`。
 
@@ -365,6 +369,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--category", default="short_prefix")
+    parser.add_argument(
+        "--slot-a-profile",
+        help="Use a profile label returned by /api/config for comparison slot A",
+    )
+    parser.add_argument(
+        "--slot-b-profile",
+        help="Use a profile label returned by /api/config for comparison slot B",
+    )
     parser.add_argument("--seed", type=int, default=20260821)
     parser.add_argument("--warmup-prefix", default="测试")
     parser.add_argument(
@@ -384,6 +396,25 @@ def main() -> None:
     args = parse_args()
     server_url = args.server_url.rstrip("/")
     config = read_json(f"{server_url}/api/config")
+    for slot, profile_label in (
+        ("a", args.slot_a_profile),
+        ("b", args.slot_b_profile),
+    ):
+        if not profile_label:
+            continue
+        matches = [
+            profile
+            for profile in config.get("profiles", [])
+            if profile.get("label") == profile_label
+        ]
+        if len(matches) != 1:
+            available = ", ".join(
+                str(profile.get("label")) for profile in config.get("profiles", [])
+            )
+            raise ValueError(
+                f"Profile {profile_label!r} was not found exactly once; available: {available}"
+            )
+        config["slots"][slot] = matches[0]
     rows = [
         json.loads(line)
         for line in args.eval_data.read_text(encoding="utf-8").splitlines()

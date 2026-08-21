@@ -1,5 +1,9 @@
 from .base import BaseAttentionBackend, BaseAttentionMetadata, HybridAttentionBackend
-from .flashinfer import FlashInferAttentionBackend, FlashInferAttentionMetadata
+from .flashinfer import (
+    FlashInferAttentionBackend,
+    FlashInferAttentionMetadata,
+    select_flashinfer_paged_backend,
+)
 
 __all__ = [
     "BaseAttentionBackend",
@@ -7,4 +11,5 @@ __all__ = [
     "HybridAttentionBackend",
     "FlashInferAttentionBackend",
     "FlashInferAttentionMetadata",
+    "select_flashinfer_paged_backend",
 ]

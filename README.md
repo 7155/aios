@@ -1,8 +1,8 @@
 # AIOS-IME：面向中文输入法的低延迟 LLM 推理引擎
 
-AIOS-IME 是面向本地单用户中文输入法的 CUDA LLM 推理系统。它支持 MiniMind-IME 0.1B
-标准残差模型与 0.214B Block AttnRes 模型，在一次按键请求内并行生成多路候选，经过过滤、
-去重和排序后返回 Top-3。
+AIOS-IME 是面向本地单用户中文输入法的 CUDA LLM 推理系统。它支持 MiniMind-IME 0.06B、
+0.1B 标准残差模型与 0.214B Block AttnRes 模型，在一次按键请求内并行生成多路候选，
+经过过滤、去重和排序后返回 Top-3。
 
 项目主路径是中文前缀补全，重点优化短前缀、短输出、单用户和低显存场景，支持共享
 Prefix KV、候选组批量 Decode、跨按键 Prefix 复用、latest-wins 取消、AttnRes Triton 融合
@@ -114,60 +114,47 @@ Top 3：，下次见面时一起看看。
 
 ## 性能
 
-### 速度总览：0.1B 极速版对比 Qwen3-0.6B
+### 五模型 BF16 短前缀统一对比
 
-同一块 RTX 4080 Laptop GPU、两侧均为 BF16、同一批 30 条冻结前缀、固定 8 路候选和
-12-token 上限：
+短前缀最接近真实按键场景，也最容易暴露“中文续写”和“通用问答”的任务差异。以下模型
+使用同一块 RTX 4080 Laptop GPU、同一批 40 条冻结 `short_prefix`、`[BOS] + 裸中文前缀`、
+同一 seed 和同一 CandidateGroup 合同。默认先生成 8 路，不足三条时最多补到 24 路：
 
-| 模型 | 参数量 | 完整 Top-3 p50 | 完整 Top-3 p95 | 峰值 allocated | 满三条且互异 |
-|---|---:|---:|---:|---:|---:|
-| **MiniMind-IME 0.1B 极速版** | **100.69M** | **83.24 ms** | **96.24 ms** | **238.60 MiB** | **96.67%** |
-| Qwen3-0.6B | 596.05M | 170.85 ms | 197.96 ms | 1,283.99 MiB | 86.67% |
+| 模型 | 参数量 | 架构 | 完整 Top-3 p50 / p95 | 满三条且互异 | 明确契约违规 | 平均路数 | 峰值 allocated |
+|---|---:|---|---:|---:|---:|---:|---:|
+| **MiniMind-IME 0.06B** | **63.91M** | 8L · Standard | **47.62 / 61.16 ms** | 100% | 0/120 | 8.00 | **177.47 MiB** |
+| **MiniMind-IME 0.1B 极速版** | **100.69M** | 14L · Standard | **86.34 / 99.06 ms** | **100%** | **0/120** | **8.00** | **238.60 MiB** |
+| MiniMind-IME 0.214B | 214.06M | 32L · Block AttnRes | 269.80 / 539.95 ms | 100% | 0/120 | 9.10 | 468.19 MiB |
+| Qwen3-0.6B | 596.05M | 28L · Standard | 171.74 / 331.36 ms | 100% | 85/120 | 9.30 | 1,284.00 MiB |
+| Qwen3-4B | 4.02B | 36L · Standard | 308.07 / 313.11 ms | 100% | 14/120 | 8.00 | 7,889.50 MiB |
 
-Qwen3-0.6B 的 p50/p95 分别是 MiniMind-IME 0.1B 的 `2.05×/2.06×`；MiniMind-IME 峰值
-allocated 低 `81.42%`。这里比较的是完整 CandidateGroup Top-3，而不是把首 token 或单次
-forward 当成整次请求。历史 0.06B 的约 7～9 ms 数字是首 token 延迟，其完整 Top-3
-p50/p95 为 `63.48/138.88 ms`，两种口径不能混用。
+0.1B 极速版相对 Qwen3-0.6B，完整 Top-3 p50 快 `1.99×`、p95 快 `3.34×`，峰值
+allocated 低 `81.42%`；相对 Qwen3-4B，p50/p95 快 `3.57×/3.16×`，峰值 allocated
+低 `96.98%`。0.06B 进一步把 p50 压到 `47.62 ms`，但实际句子自然度明显弱于 0.1B，
+因此它是极致资源档，不是默认质量档。0.214B 用于验证更深的 Block AttnRes 架构；它的
+32 层和补采样让延迟高于 0.1B，不能包装成速度升级。
 
-完整协议与复现命令见
-[0.1B vs Qwen3-0.6B BF16 延迟报告](reports/aios_ime_100m_vs_qwen06b_speed_20260821.md)。
+“明确契约违规”只统计冻结禁词、Question/Answer/摘要等元文本或指令、重度拉丁字符、
+韩文或日文脚本。`0/120` 只表示没有命中这些确定性错误，不表示 120 条候选都通过了人工
+自然度判断。固定只生成 8 路时，五个模型满三条且互异的前缀比例依次为
+`95% / 100% / 85% / 85% / 100%`；自适应补采样可以补齐数量，不能修复语义或任务合同。
 
-### 短前缀专项：更小，但更符合输入法合同
-
-短前缀是输入法最常见、也最容易暴露任务错配的输入。使用冻结评测中的全部 40 条
-`short_prefix`，两侧均采用 `[BOS] + 裸中文前缀`、BF16、首轮 8 路和相同 seed；默认
-策略允许不足三条时自适应补到最多 24 路：
-
-| 模型 | 完整 Top-3 p50 / p95 | 满三条且互异 | 明确契约违规候选 | 受影响前缀 | 平均采样路数 | 峰值 allocated |
-|---|---:|---:|---:|---:|---:|---:|
-| **MiniMind-IME 0.1B 极速版** | **91.34 / 110.02 ms** | **100%** | **0/120** | **0/40** | **8.00** | **238.60 MiB** |
-| Qwen3-0.6B | 168.13 / 325.75 ms | 100% | 85/120 | 30/40 | 9.30 | 1,284.00 MiB |
-
-“明确契约违规”只统计可复现的结构失败：冻结禁词、Question/Answer/摘要等元文本或指令、
-重度拉丁字符、韩文或日文脚本。它不是主观自然度评分，因此是失败率的保守下界。固定只
-生成 8 路时，MiniMind-IME 仍为 40/40 满三条，Qwen3-0.6B 为 34/40；补采样能补齐数量，
-不能修复任务合同。
-
-同一批次中的实际候选：
+同一批次、同一前缀中的实际候选（每个模型各取一条，不改写）：
 
 ```text
-前缀：回头
-MiniMind-IME：回头再检查一次，有变化我会发消息。
-Qwen3-0.6B： 回头Multiple在2023年10月1
-
-前缀：不用急
-MiniMind-IME：不用急着马上回复，明天再看状态。
-Qwen3-0.6B： 不用急，我需要写一个关于“科技与人文”的主题
-
-前缀：这个
-MiniMind-IME：这个地方有点远，我回去时顺路。
-Qwen3-0.6B： 这个Answeriscorrect?
+前缀：那我
+MiniMind-IME 0.06B： 那我先把手头的事做一下
+MiniMind-IME 0.1B：  那我把垃圾袋放到一边，等你回来
+MiniMind-IME 0.214B：那我去找你了。
+Qwen3-0.6B：          那我之前在做实验的时候，发现了一个有趣的现象……
+Qwen3-4B：            那我是不是应该先学习一些基础的编程语言，比如 Python……
 ```
 
-这组结果说明的是**裸中文短前缀输入法补全**的任务适配差异，不代表通用问答能力排名。
-输入法不能为了适配通用聊天模型而套聊天模板，因为那会把“续写当前句子”改成“回答用户”。
-40 条汇总指标、六组同前缀原始输出、固定 8 路与自适应 24 路两套结果及复现脚本见
-[短前缀批量对比报告](reports/aios_ime_short_prefix_compare_20260821.md)。
+这组结果比较的是**裸中文短前缀输入法补全**，不代表通用问答能力排名。输入法若套聊天
+模板，会把“续写当前句子”改成“回答用户”，不再是同一个任务。完整五模型表、固定 8 路
+与自适应 24 路结果、六组同前缀输出和复现脚本见
+[五模型短前缀统一对比报告](reports/aios_ime_short_prefix_matrix_20260821.md)。历史双模型基准仍
+保留在[0.1B vs Qwen3-0.6B 报告](reports/aios_ime_short_prefix_compare_20260821.md)。
 
 ### 0.214B Block AttnRes
 
@@ -481,8 +468,8 @@ print([candidate.text for candidate in result.candidates])
 Top-3 和全部原始候选，并记录完整 CandidateGroup 延迟、GPU 事件延迟、active tokens/s、
 实际采样路数、补采样轮次、Prefix KV 复用量与峰值显存。
 
-默认比较 MiniMind-IME 0.1B 极速版与 Qwen3-0.6B；最新 0.214B Block AttnRes 质量版和
-Qwen3-4B 保留在快速选择框中：
+默认比较 MiniMind-IME 0.1B 极速版与 Qwen3-0.6B；0.06B 资源档、0.214B Block AttnRes
+架构实验版和 Qwen3-4B 保留在快速选择框中：
 
 ```bash
 source scripts/activate_aios.sh
@@ -494,6 +481,7 @@ python scripts/run_ime_compare_frontend.py \
   --model-b /path/to/Qwen3-0.6B \
   --label-b 'Qwen3-0.6B' \
   --backend-b default \
+  --profile 'MiniMind-IME 0.06B=/path/to/minimind-ime-0.06b-aios' \
   --profile '0.214B AttnRes 质量版=/path/to/minimind-ime-0.214b-aios' \
   --profile 'Qwen3-4B=/path/to/Qwen3-4B'
 ```
@@ -505,8 +493,9 @@ http://127.0.0.1:7860
 ```
 
 `--profile NAME=LOCAL_PATH` 会把其他本地模型加入 A/B 两侧的快速选择框。0.1B Standard
-承担低延迟展示，0.214B Block AttnRes 是最新质量/架构实验模型；运行时统一使用 BF16，
-页面会在模型名与实测架构信息中显示精度。也可以让 A、B 指向同一个 0.214B 模型，只改变
+承担默认低延迟展示，0.06B 是更小但语言能力更弱的资源档，0.214B Block AttnRes 是
+质量/架构实验模型；运行时统一使用 BF16，页面会在模型名与实测架构信息中显示精度。
+也可以让 A、B 指向同一个 0.214B 模型，只改变
 `--backend-a` 和 `--backend-b`，对比 `triton`、`compiled`、`eager` 或 `reference`。
 
 每个栏位使用独立子进程持有 AIOS 全局 CUDA Context；A/B 默认在同一 GPU 上串行推理，
@@ -593,7 +582,8 @@ AIOS_IME_MODEL=/path/to/minimind-ime-aios \
   pytest -q tests/test_ime_gpu.py
 ```
 
-当前回归结果：`36 passed, 4 skipped`；旧 0.1B GPU 兼容测试 `4 passed`；0.214B
+当前回归结果：`46 passed, 4 skipped`；0.06B 的 BF16 Prefill/Decode、有限 logprob 与
+增量 Prefix LCP 已完成真实 GPU smoke；旧 0.1B GPU 兼容测试 `4 passed`；0.214B
 CandidateGroup、Prefix LCP 与 latest-wins GPU smoke `3 passed`。
 
 性能测试：

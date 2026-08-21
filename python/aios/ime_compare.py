@@ -294,11 +294,17 @@ class CompareRequest:
 
 def _model_metadata(llm: Any, parameter_count: int) -> dict[str, Any]:
     config = llm.config
+    attention_backend = llm.model.attn_backend
     return {
         "model_type": config.model_type,
         "architecture_revision": config.architecture_revision,
         "residual_type": config.residual_type,
         "attnres_backend": config.attnres_backend,
+        "attention_backend": getattr(
+            attention_backend,
+            "backend_name",
+            type(attention_backend).__name__,
+        ),
         "layers": config.num_layers,
         "hidden_size": config.hidden_size,
         "intermediate_size": config.intermediate_size,

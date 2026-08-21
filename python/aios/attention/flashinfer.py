@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import torch
+import torch.nn.functional as F
 
 from aios.core import get_global_ctx
 
@@ -13,6 +14,81 @@ if TYPE_CHECKING:
     from aios.core import Batch
     from aios.kvcache import MHAKVCache
     from aios.models import ModelConfig
+
+
+# FlashInfer 0.5.x's paged-prefill kernels are only reliable for the prebuilt
+# head dimensions below.  In particular, the legacy MiniMind 60M model uses
+# head_dim=96: forced FA2 returns NaNs deterministically and the automatic
+# dispatcher is input-dependent.  Keep the known fast path explicit and route
+# nonstandard paged-prefill shapes through PyTorch SDPA instead.
+FLASHINFER_FA2_PAGED_HEAD_DIMS = frozenset({64, 128, 256})
+
+
+def select_flashinfer_paged_backend(head_dim: int) -> str:
+    if head_dim <= 0:
+        raise ValueError("head_dim must be positive")
+    return "fa2" if head_dim in FLASHINFER_FA2_PAGED_HEAD_DIMS else "auto"
+
+
+def _sdpa_prefill_attention(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    *,
+    cached_len: int,
+    sm_scale: float,
+) -> torch.Tensor:
+    """Run one causal prefill request, including a cached-prefix offset.
+
+    Inputs use AIOS's flat NHD layout.  PyTorch SDPA expects BHLD, so this
+    helper only reshapes views and repeats GQA K/V heads when needed.  A custom
+    mask is required for incremental prefill because query row zero represents
+    absolute position ``cached_len`` rather than position zero.
+    """
+    if q.ndim != 3 or k.ndim != 3 or v.ndim != 3:
+        raise ValueError("q, k and v must use [tokens, heads, head_dim]")
+    if k.shape != v.shape:
+        raise ValueError("k and v must have the same shape")
+    if q.shape[2] != k.shape[2]:
+        raise ValueError("q and k must have the same head_dim")
+    if q.shape[1] % k.shape[1]:
+        raise ValueError("query head count must be divisible by KV head count")
+    if cached_len < 0 or cached_len + q.shape[0] != k.shape[0]:
+        raise ValueError("cached_len + query length must equal KV length")
+
+    q_bhld = q.transpose(0, 1).unsqueeze(0)
+    k_bhld = k.transpose(0, 1).unsqueeze(0)
+    v_bhld = v.transpose(0, 1).unsqueeze(0)
+    repeats = q.shape[1] // k.shape[1]
+    if repeats != 1:
+        k_bhld = k_bhld.repeat_interleave(repeats, dim=1)
+        v_bhld = v_bhld.repeat_interleave(repeats, dim=1)
+
+    if cached_len == 0:
+        attention_mask = None
+        is_causal = True
+    else:
+        query_positions = torch.arange(
+            cached_len,
+            cached_len + q.shape[0],
+            device=q.device,
+        )
+        key_positions = torch.arange(k.shape[0], device=q.device)
+        attention_mask = (
+            key_positions.unsqueeze(0) <= query_positions.unsqueeze(1)
+        ).unsqueeze(0).unsqueeze(0)
+        is_causal = False
+
+    output = F.scaled_dot_product_attention(
+        q_bhld,
+        k_bhld,
+        v_bhld,
+        attn_mask=attention_mask,
+        dropout_p=0.0,
+        is_causal=is_causal,
+        scale=sm_scale,
+    )
+    return output.squeeze(0).transpose(0, 1).contiguous()
 
 
 @dataclass
@@ -53,6 +129,19 @@ class FlashInferAttentionBackend(BaseAttentionBackend):
         self.num_kv_heads = config.num_kv_heads
         self.head_dim = config.head_dim
         self.sm_scale = config.head_dim ** -0.5
+        self.prefill_kernel_backend = (
+            "fa2"
+            if config.head_dim in FLASHINFER_FA2_PAGED_HEAD_DIMS
+            else "torch-sdpa"
+        )
+        self.decode_kernel_backend = select_flashinfer_paged_backend(
+            config.head_dim
+        )
+        self.backend_name = (
+            "flashinfer-paged-"
+            f"prefill-{self.prefill_kernel_backend}-"
+            f"decode-{self.decode_kernel_backend}"
+        )
         self.workspace_size = workspace_size
         self._workspace: torch.Tensor | None = None
         self._prefill_wrapper: Any | None = None
@@ -81,10 +170,12 @@ class FlashInferAttentionBackend(BaseAttentionBackend):
                 self._workspace = torch.empty(
                     self.workspace_size, dtype=torch.uint8, device=device
                 )
+            if self.prefill_kernel_backend == "torch-sdpa":
+                raise RuntimeError("torch-sdpa prefill does not use a FlashInfer wrapper")
             self._prefill_wrapper = flashinfer.BatchPrefillWithPagedKVCacheWrapper(
                 self._workspace,
                 kv_layout="NHD",
-                backend="fa2",
+                backend=self.prefill_kernel_backend,
             )
         return self._prefill_wrapper
 
@@ -102,7 +193,7 @@ class FlashInferAttentionBackend(BaseAttentionBackend):
                 self._workspace,
                 use_tensor_cores=use_tensor_cores,
                 kv_layout="NHD",
-                backend="fa2",
+                backend=self.decode_kernel_backend,
             )
         return self._decode_wrapper
 
@@ -145,9 +236,15 @@ class FlashInferAttentionBackend(BaseAttentionBackend):
             pos_encoding_mode="NONE",
             seq_lens_cpu=seq_lens_cpu,
             dtype=ctx.kv_cache.dtype,
-            wrapper=self._get_decode_wrapper(device)
-            if batch.is_decode
-            else self._get_prefill_wrapper(device),
+            wrapper=(
+                self._get_decode_wrapper(device)
+                if batch.is_decode
+                else (
+                    None
+                    if self.prefill_kernel_backend == "torch-sdpa"
+                    else self._get_prefill_wrapper(device)
+                )
+            ),
         )
         batch.attn_metadata = metadata
         return metadata
@@ -212,12 +309,67 @@ class FlashInferAttentionBackend(BaseAttentionBackend):
         assert batch.is_prefill, "prefill backend expects a prefill batch"
         metadata = batch.attn_metadata
         assert isinstance(metadata, FlashInferAttentionMetadata)
-        self._initialize_metadata_once(metadata)
         paged_kv_cache.store_kv(k, v, batch.out_loc.view(-1), layer_id)
+        if self.prefill_kernel_backend == "torch-sdpa":
+            return self._prefill_with_sdpa(
+                q,
+                k,
+                v,
+                paged_kv_cache,
+                layer_id,
+                batch,
+            )
+        self._initialize_metadata_once(metadata)
         attn_output = metadata.wrapper.run(
             q, self._kv_cache_for_flashinfer(paged_kv_cache, layer_id)
         )
         return attn_output.reshape(q.size(0), -1)
+
+    def _prefill_with_sdpa(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        paged_kv_cache: MHAKVCache,
+        layer_id: int,
+        batch: Batch,
+    ) -> torch.Tensor:
+        """Correctness fallback for unsupported FlashInfer paged head dims."""
+        ctx = get_global_ctx()
+        k_cache = paged_kv_cache.k_cache(layer_id).view(
+            -1, self.num_kv_heads, self.head_dim
+        )
+        v_cache = paged_kv_cache.v_cache(layer_id).view(
+            -1, self.num_kv_heads, self.head_dim
+        )
+        outputs: list[torch.Tensor] = []
+        extend_offset = 0
+        for req in batch.reqs:
+            extend_len = req.extend_len
+            next_offset = extend_offset + extend_len
+            query = q[extend_offset:next_offset]
+            if req.cached_len == 0:
+                keys = k[extend_offset:next_offset]
+                values = v[extend_offset:next_offset]
+            else:
+                page_indices = ctx.page_table[
+                    req.table_idx, : req.device_len
+                ].to(torch.long)
+                keys = k_cache[page_indices]
+                values = v_cache[page_indices]
+            outputs.append(
+                _sdpa_prefill_attention(
+                    query,
+                    keys,
+                    values,
+                    cached_len=req.cached_len,
+                    sm_scale=self.sm_scale,
+                )
+            )
+            extend_offset = next_offset
+        if extend_offset != q.shape[0]:
+            raise RuntimeError("prefill request lengths do not match flat Q tokens")
+        return torch.cat(outputs, dim=0).reshape(q.size(0), -1)
 
     def _decode(
         self,
