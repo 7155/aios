@@ -58,6 +58,7 @@ class Sampler:
         generator: torch.Generator | None = None,
         uniforms: torch.Tensor | None = None,
         forbidden_token_ids: Sequence[int] = (),
+        forbidden_token_ids_by_row: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Sample token ids and return their raw model log probabilities.
 
@@ -72,6 +73,8 @@ class Sampler:
 
         raw_log_probs = F.log_softmax(logits.float(), dim=-1)
         sampling_logits = logits
+        if forbidden_token_ids or forbidden_token_ids_by_row is not None:
+            sampling_logits = logits.clone()
         if forbidden_token_ids:
             blocked = sorted({int(token_id) for token_id in forbidden_token_ids})
             invalid = [
@@ -83,8 +86,31 @@ class Sampler:
                 raise ValueError(
                     f"forbidden token ids are outside the vocabulary: {invalid}"
                 )
-            sampling_logits = logits.clone()
             sampling_logits[..., blocked] = -torch.inf
+        if forbidden_token_ids_by_row is not None:
+            if logits.ndim != 2:
+                raise ValueError("row-specific forbidden ids require 2D logits")
+            if (
+                forbidden_token_ids_by_row.ndim != 2
+                or forbidden_token_ids_by_row.shape[0] != logits.shape[0]
+            ):
+                raise ValueError(
+                    "forbidden_token_ids_by_row must have shape [batch, count]"
+                )
+            if forbidden_token_ids_by_row.device.type == "cpu" and not bool(
+                (
+                    (forbidden_token_ids_by_row >= 0)
+                    & (forbidden_token_ids_by_row < logits.shape[-1])
+                ).all().item()
+            ):
+                raise ValueError(
+                    "row-specific forbidden token ids are outside the vocabulary"
+                )
+            row_ids = forbidden_token_ids_by_row.to(
+                device=logits.device, dtype=torch.long
+            )
+            if row_ids.numel():
+                sampling_logits.scatter_(1, row_ids, -torch.inf)
 
         if self.sampling_params.is_greedy:
             token_ids = sampling_logits.argmax(dim=-1, keepdim=True)

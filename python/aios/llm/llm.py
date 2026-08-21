@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from typing import List, Literal
 
 import torch
@@ -34,6 +35,9 @@ class LLM:
             config = ModelConfig.from_hf(hf_config)
         except ValueError:
             config = ModelConfig.from_json(model_path)
+        attnres_backend = kwargs.get("attnres_backend")
+        if attnres_backend is not None:
+            config = replace(config, attnres_backend=str(attnres_backend))
         self.config = config
         self._num_layers = config.num_layers
 

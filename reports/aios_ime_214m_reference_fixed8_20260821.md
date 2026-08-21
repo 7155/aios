@@ -1,0 +1,11 @@
+# AIOS-IME 单用户 CandidateGroup 基准
+
+- GPU：`NVIDIA GeForce RTX 4080 Laptop GPU`；模型：`ime_214m_block_attnres_v1` BF16；AttnRes backend：`reference`；显示 Top-3，内部先并行 `8` 路，有效候选不足时最多补到 `8` 路。
+- 预热：`3`；计时样本：`10`；不含首次 JIT/wrapper 规划。
+- Top-3 p50/p95：`389.47/422.43 ms`。
+- 实际模型工作量：`237.35 active tokens/s`（只计 Prefix 新算 token 与 Decode 活跃 row）。
+- 模型加载后/基准峰值 allocated：`433.69/467.99 MiB`。
+- 返回满三条比例：`80.00%`；三条互异比例：`80.00%`。
+
+计时口径包含一次 Prefix Prefill、同组分支共享 Prefix KV 的 decode、GPU 原始 logprob、CPU
+统一解码、过滤、去重和 MMR Top-3；不包含模型加载和首次 JIT 编译。

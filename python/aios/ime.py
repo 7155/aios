@@ -16,6 +16,7 @@ from .llm import LLM
 
 ASSISTANT_PATTERN = re.compile(r"以下是|首先|其次|综上所述|作为(?:一个)?AI|我是AI|我来回答")
 REPEAT_PATTERN = re.compile(r"(.)\1{3,}")
+TERMINAL_TEXT_PATTERN = re.compile(r"[。！？!?；;]")
 FUNCTION_WORD_ENDINGS = (
     "的", "地", "得", "和", "与", "或", "但", "而", "在", "把", "被", "给",
     "对", "从", "向", "为", "再", "就", "会", "能", "如果", "因为", "所以",
@@ -32,16 +33,25 @@ NATURAL_REDUPLICATIONS = {
 class ImeGenerationConfig:
     display_candidates: int = 3
     sampling_attempts: int = 8
-    max_sampling_attempts: int = 12
-    refill_batch_size: int = 4
+    max_sampling_attempts: int = 24
+    refill_batch_size: int = 8
+    min_refill_batch_size: int = 2
     max_new_tokens: int = 12
     min_new_tokens: int = 2
-    max_candidate_chars: int = 16
+    max_candidate_chars: int = 32
     temperature: float = 0.35
     top_k: int = 50
     top_p: float = 0.9
-    refill_temperature: float = 0.55
-    refill_top_k: int = 80
+    refill_temperature: float = 0.75
+    refill_temperature_step: float = 0.10
+    max_refill_temperature: float = 0.95
+    refill_top_k: int = 96
+    refill_top_k_step: int = 32
+    max_refill_top_k: int = 160
+    refill_top_p: float = 0.95
+    refill_avoid_exact_repeats: bool = True
+    refill_ban_min_prefix_tokens: int = 2
+    refill_deadline_ms: float = 0.0
     diversity_lambda: float = 0.35
     seed: int = 20260814
 
@@ -54,16 +64,36 @@ class ImeGenerationConfig:
             raise ValueError("max_sampling_attempts must cover the initial attempts")
         if self.refill_batch_size < 1:
             raise ValueError("refill_batch_size must be positive")
+        if not 1 <= self.min_refill_batch_size <= self.refill_batch_size:
+            raise ValueError(
+                "min_refill_batch_size must be within refill_batch_size"
+            )
         if self.max_new_tokens < 1:
             raise ValueError("max_new_tokens must be positive")
         if not 0 <= self.min_new_tokens <= self.max_new_tokens:
             raise ValueError("min_new_tokens must be within max_new_tokens")
         if not 0.0 < self.top_p <= 1.0:
             raise ValueError("top_p must be in (0, 1]")
+        if not 0.0 < self.refill_top_p <= 1.0:
+            raise ValueError("refill_top_p must be in (0, 1]")
         if self.temperature <= 0.0 or self.refill_temperature <= 0.0:
             raise ValueError("IME candidate sampling temperatures must be positive")
+        if self.refill_temperature_step < 0.0:
+            raise ValueError("refill_temperature_step must be non-negative")
+        if self.max_refill_temperature < self.refill_temperature:
+            raise ValueError(
+                "max_refill_temperature must cover refill_temperature"
+            )
         if self.top_k < 1 or self.refill_top_k < 1:
             raise ValueError("IME candidate top_k values must be positive")
+        if self.refill_top_k_step < 0:
+            raise ValueError("refill_top_k_step must be non-negative")
+        if self.max_refill_top_k < self.refill_top_k:
+            raise ValueError("max_refill_top_k must cover refill_top_k")
+        if self.refill_deadline_ms < 0.0:
+            raise ValueError("refill_deadline_ms must be non-negative")
+        if self.refill_ban_min_prefix_tokens < 1:
+            raise ValueError("refill_ban_min_prefix_tokens must be positive")
 
 
 @dataclass(frozen=True)
@@ -87,10 +117,16 @@ class ImeCompletionResult:
     prefix_tokens: int
     sampling_attempts: int
     generated_tokens: int
+    active_model_tokens: int
     latency_ms: float
     gpu_latency_ms: float
     unique_kv_pages: int
     reused_prefix_tokens: int
+    refill_rounds: int
+    valid_unique_candidates: int
+    invalid_candidates: int
+    duplicate_candidates: int
+    refill_stop_reason: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -102,6 +138,15 @@ class ImeCandidateScore:
     token_count: int
     average_logprob: float
     sum_logprob: float
+
+
+@dataclass(frozen=True)
+class CandidatePoolStats:
+    attempts: int
+    valid_candidates: int
+    valid_unique_candidates: int
+    invalid_candidates: int
+    duplicate_candidates: int
 
 
 @dataclass(frozen=True)
@@ -141,6 +186,20 @@ class CancellationToken:
 
 def normalize_candidate(text: str) -> str:
     return re.sub(r"\s+", "", text.replace("\ufffd", "")).strip()
+
+
+def truncate_at_terminal(text: str) -> tuple[str, bool]:
+    """Trim text after its first decoded sentence terminator.
+
+    A tokenizer token can contain both ``。`` and the start of the next
+    sentence. Token-id stop sets cannot catch that case during GPU decode, so
+    the completed first sentence is recovered once, after all rows return to
+    CPU. Commas are deliberately not terminators for Chinese IME phrases.
+    """
+    match = TERMINAL_TEXT_PATTERN.search(text)
+    if match is None:
+        return text, False
+    return text[: match.end()], True
 
 
 def candidate_key(text: str) -> str:
@@ -252,6 +311,62 @@ def select_top_candidates(
     return selected
 
 
+def candidate_pool_stats(candidates: list[ImeCandidate]) -> CandidatePoolStats:
+    valid = [
+        candidate
+        for candidate in candidates
+        if not candidate.invalid_reasons and math.isfinite(candidate.base_score)
+    ]
+    unique_keys = {candidate_key(candidate.text) for candidate in valid}
+    return CandidatePoolStats(
+        attempts=len(candidates),
+        valid_candidates=len(valid),
+        valid_unique_candidates=len(unique_keys),
+        invalid_candidates=len(candidates) - len(valid),
+        duplicate_candidates=len(valid) - len(unique_keys),
+    )
+
+
+def adaptive_refill_attempts(
+    candidates: list[ImeCandidate],
+    config: ImeGenerationConfig,
+    attempts_used: int,
+) -> int:
+    """Plan only enough fresh branches to fill the filtered Top-3 deficit.
+
+    The observed yield is measured *after* hard filtering and display-level
+    deduplication. A pool that produced one unique valid candidate from eight
+    branches therefore receives a larger refill than a pool already holding
+    two distinct candidates. The result is always bounded by both the per-round
+    batch cap and the request-wide attempt budget.
+    """
+    remaining = config.max_sampling_attempts - attempts_used
+    if remaining <= 0:
+        return 0
+    stats = candidate_pool_stats(candidates)
+    deficit = config.display_candidates - stats.valid_unique_candidates
+    if deficit <= 0:
+        return 0
+
+    # A small floor avoids an infinite estimate when the first batch yields no
+    # valid unique text, while still reacting strongly to duplicate-heavy rows.
+    yield_floor = 1.0 / max(1, config.refill_batch_size)
+    observed_yield = (
+        stats.valid_unique_candidates / stats.attempts
+        if stats.attempts
+        else yield_floor
+    )
+    effective_yield = max(yield_floor, observed_yield)
+    predicted = math.ceil(deficit / effective_yield)
+    diversity_headroom = deficit * 2
+    planned = max(
+        config.min_refill_batch_size,
+        diversity_headroom,
+        predicted,
+    )
+    return min(planned, config.refill_batch_size, remaining)
+
+
 class ImeCompletionEngine:
     """Single-user, same-prefix candidate-group runtime for MiniMind-IME."""
 
@@ -329,10 +444,16 @@ class ImeCompletionEngine:
                 prefix_tokens=len(token_ids),
                 sampling_attempts=0,
                 generated_tokens=0,
+                active_model_tokens=0,
                 latency_ms=(time.perf_counter() - wall_started) * 1000.0,
                 gpu_latency_ms=0.0,
                 unique_kv_pages=0,
                 reused_prefix_tokens=0,
+                refill_rounds=0,
+                valid_unique_candidates=0,
+                invalid_candidates=0,
+                duplicate_candidates=0,
+                refill_stop_reason="cancelled",
             )
         max_total_len = len(token_ids) + config.max_new_tokens
         if max_total_len > self.llm.config.max_position_embeddings:
@@ -340,7 +461,10 @@ class ImeCompletionEngine:
                 f"prefix + output exceeds context limit: {max_total_len} > "
                 f"{self.llm.config.max_position_embeddings}"
             )
-        required_pages = len(token_ids) + config.sampling_attempts * max(
+        max_concurrent_attempts = max(
+            config.sampling_attempts, config.refill_batch_size
+        )
+        required_pages = len(token_ids) + max_concurrent_attempts * max(
             0, config.max_new_tokens - 1
         )
         if required_pages > self.llm.num_pages:
@@ -371,13 +495,69 @@ class ImeCompletionEngine:
             raw_candidates: list[ImeCandidate] = []
             actual_attempts = 0
             generated_tokens = 0
+            active_model_tokens = len(token_ids) - reused_prefix_tokens
+            refill_rounds = 0
+            refill_stop_reason = "max_attempts"
             while actual_attempts < max_attempts:
-                attempts = (
-                    config.sampling_attempts
-                    if actual_attempts == 0
-                    else min(config.refill_batch_size, max_attempts - actual_attempts)
-                )
-                candidates, pages, batch_generated, batch_cancelled = self._generate_branch_batch(
+                if actual_attempts == 0:
+                    attempts = config.sampling_attempts
+                    temperature = config.temperature
+                    top_k = config.top_k
+                    top_p = config.top_p
+                    forbidden_sequences: list[list[int]] = []
+                else:
+                    elapsed_ms = (time.perf_counter() - wall_started) * 1000.0
+                    if (
+                        config.refill_deadline_ms > 0.0
+                        and elapsed_ms >= config.refill_deadline_ms
+                    ):
+                        refill_stop_reason = "deadline"
+                        break
+                    attempts = adaptive_refill_attempts(
+                        raw_candidates, config, actual_attempts
+                    )
+                    if attempts == 0:
+                        refill_stop_reason = "filled"
+                        break
+                    refill_rounds += 1
+                    temperature = min(
+                        config.max_refill_temperature,
+                        config.refill_temperature
+                        + (refill_rounds - 1) * config.refill_temperature_step,
+                    )
+                    top_k = min(
+                        config.max_refill_top_k,
+                        config.refill_top_k
+                        + (refill_rounds - 1) * config.refill_top_k_step,
+                    )
+                    top_p = config.refill_top_p
+                    forbidden_sequences = []
+                    if config.refill_avoid_exact_repeats:
+                        seen_candidate_keys: set[str] = set()
+                        for candidate in sorted(
+                            raw_candidates,
+                            key=lambda item: item.base_score,
+                            reverse=True,
+                        ):
+                            key = candidate_key(candidate.text)
+                            if not key or key in seen_candidate_keys:
+                                continue
+                            token_sequence = self.llm.tokenizer.encode(
+                                candidate.text, add_special_tokens=False
+                            )
+                            if (
+                                len(token_sequence)
+                                > config.refill_ban_min_prefix_tokens
+                            ):
+                                forbidden_sequences.append(token_sequence)
+                                seen_candidate_keys.add(key)
+                (
+                    candidates,
+                    pages,
+                    batch_generated,
+                    batch_active_tokens,
+                    batch_cancelled,
+                ) = self._generate_branch_batch(
                     prefix=prefix,
                     prefix_logits=prefix_logits,
                     page_table=page_table,
@@ -386,16 +566,10 @@ class ImeCompletionEngine:
                     prefix_len=len(token_ids),
                     config=config,
                     seed=config.seed + actual_attempts * 100_003,
-                    temperature=(
-                        config.temperature
-                        if actual_attempts == 0
-                        else config.refill_temperature
-                    ),
-                    top_k=(
-                        config.top_k
-                        if actual_attempts == 0
-                        else config.refill_top_k
-                    ),
+                    temperature=temperature,
+                    top_k=top_k,
+                    top_p=top_p,
+                    forbidden_sequences=forbidden_sequences,
                     cancellation=cancellation,
                 )
                 raw_candidates.extend(candidates)
@@ -406,6 +580,7 @@ class ImeCompletionEngine:
                 )
                 actual_attempts += attempts
                 generated_tokens += batch_generated
+                active_model_tokens += batch_active_tokens
                 cancelled |= batch_cancelled
                 # Candidate text and scores are now materialized; branch KV is
                 # not needed by a later adaptive refill batch.
@@ -418,6 +593,7 @@ class ImeCompletionEngine:
                     config.diversity_lambda,
                 )
                 if cancelled or len(selected) >= config.display_candidates:
+                    refill_stop_reason = "cancelled" if cancelled else "filled"
                     break
 
             ended.record()
@@ -428,6 +604,13 @@ class ImeCompletionEngine:
                 config.display_candidates,
                 config.diversity_lambda,
             )
+            pool_stats = candidate_pool_stats(raw_candidates)
+            if (
+                refill_stop_reason == "max_attempts"
+                and actual_attempts < max_attempts
+                and len(selected) >= config.display_candidates
+            ):
+                refill_stop_reason = "filled"
             latency_ms = (time.perf_counter() - wall_started) * 1000.0
             return ImeCompletionResult(
                 prefix=prefix,
@@ -438,10 +621,16 @@ class ImeCompletionEngine:
                 prefix_tokens=len(token_ids),
                 sampling_attempts=actual_attempts,
                 generated_tokens=generated_tokens,
+                active_model_tokens=active_model_tokens,
                 latency_ms=latency_ms,
                 gpu_latency_ms=gpu_latency_ms,
                 unique_kv_pages=peak_unique_pages,
                 reused_prefix_tokens=reused_prefix_tokens,
+                refill_rounds=refill_rounds,
+                valid_unique_candidates=pool_stats.valid_unique_candidates,
+                invalid_candidates=pool_stats.invalid_candidates,
+                duplicate_candidates=pool_stats.duplicate_candidates,
+                refill_stop_reason=refill_stop_reason,
             )
         finally:
             if allocated_pages:
@@ -709,8 +898,10 @@ class ImeCompletionEngine:
         seed: int,
         temperature: float,
         top_k: int,
+        top_p: float,
+        forbidden_sequences: list[list[int]],
         cancellation: CancellationToken,
-    ) -> tuple[list[ImeCandidate], list[torch.Tensor], int, bool]:
+    ) -> tuple[list[ImeCandidate], list[torch.Tensor], int, int, bool]:
         device = self.llm.device
         logits = prefix_logits.expand(attempts, -1)
         output_ids = torch.full(
@@ -721,6 +912,11 @@ class ImeCompletionEngine:
         )
         counts = torch.zeros(attempts, dtype=torch.long, device=device)
         logprob_sums = torch.zeros(attempts, dtype=torch.float32, device=device)
+        token_logprobs = torch.zeros(
+            (attempts, config.max_new_tokens),
+            dtype=torch.float32,
+            device=device,
+        )
         stop_codes = torch.zeros(attempts, dtype=torch.int8, device=device)
         candidate_uniforms = stateless_uniforms(
             [seed + index for index in range(attempts)],
@@ -730,7 +926,7 @@ class ImeCompletionEngine:
         sampler = Sampler(SamplingParams(
             temperature=temperature,
             top_k=top_k,
-            top_p=config.top_p,
+            top_p=top_p,
             max_tokens=config.max_new_tokens,
         ))
         row_indices = torch.arange(
@@ -738,6 +934,7 @@ class ImeCompletionEngine:
         )
         allocated_pages: list[torch.Tensor] = []
         cancelled = False
+        active_model_tokens = 0
         active_local = torch.arange(attempts, dtype=torch.long, device=device)
         minimum_length_blocked_ids = tuple(sorted({
             *self._terminal_token_ids,
@@ -747,11 +944,54 @@ class ImeCompletionEngine:
                 else ()
             ),
         }))
+        banned_sequences: torch.Tensor | None = None
+        banned_lengths: torch.Tensor | None = None
+        if forbidden_sequences:
+            max_banned_length = max(map(len, forbidden_sequences))
+            banned_sequences = torch.full(
+                (len(forbidden_sequences), max_banned_length),
+                self.llm.tokenizer.pad_token_id,
+                dtype=torch.long,
+                device=device,
+            )
+            banned_lengths = torch.tensor(
+                [len(sequence) for sequence in forbidden_sequences],
+                dtype=torch.long,
+                device=device,
+            )
+            for sequence_index, sequence in enumerate(forbidden_sequences):
+                banned_sequences[sequence_index, : len(sequence)] = torch.tensor(
+                    sequence, dtype=torch.long, device=device
+                )
 
         for step in range(config.max_new_tokens):
             if cancellation.cancelled:
                 cancelled = True
                 break
+            forbidden_by_row: torch.Tensor | None = None
+            if (
+                banned_sequences is not None
+                and banned_lengths is not None
+                and step >= config.refill_ban_min_prefix_tokens
+                and step < banned_sequences.shape[1]
+            ):
+                generated_prefixes = output_ids[active_local, :step]
+                prefix_matches = (
+                    generated_prefixes[:, None, :]
+                    == banned_sequences[None, :, :step]
+                ).all(dim=-1)
+                prefix_matches &= banned_lengths[None, :] > step
+                next_banned_ids = banned_sequences[None, :, step].expand(
+                    active_local.numel(), -1
+                )
+                forbidden_by_row = torch.where(
+                    prefix_matches,
+                    next_banned_ids,
+                    torch.full_like(
+                        next_banned_ids, self.llm.tokenizer.pad_token_id
+                    ),
+                )
+
             token, raw_logprob = sampler.sample_with_logprobs(
                 logits,
                 uniforms=candidate_uniforms[active_local, step],
@@ -760,6 +1000,7 @@ class ImeCompletionEngine:
                     if step < config.min_new_tokens
                     else ()
                 ),
+                forbidden_token_ids_by_row=forbidden_by_row,
             )
             token = token.squeeze(-1)
             raw_logprob = raw_logprob.squeeze(-1)
@@ -772,6 +1013,9 @@ class ImeCompletionEngine:
             )
             counts[active_local] += emitted.long()
             logprob_sums[active_local] += torch.where(
+                emitted, raw_logprob, torch.zeros_like(raw_logprob)
+            )
+            token_logprobs[active_local, step] = torch.where(
                 emitted, raw_logprob, torch.zeros_like(raw_logprob)
             )
 
@@ -797,6 +1041,7 @@ class ImeCompletionEngine:
             if active_local.numel() == 0:
                 break
             decode_tokens = token[survivors]
+            active_model_tokens += int(decode_tokens.numel())
             logits, pages = self._decode_step(
                 decode_tokens,
                 page_table,
@@ -808,6 +1053,7 @@ class ImeCompletionEngine:
         output_cpu = output_ids.cpu()
         counts_cpu = counts.cpu().tolist()
         score_sums = logprob_sums.cpu().tolist()
+        token_logprobs_cpu = token_logprobs.cpu()
         stop_cpu = stop_codes.cpu().tolist()
         decoded = self.llm.tokenizer.batch_decode(
             [output_cpu[row, : counts_cpu[row]].tolist() for row in range(attempts)],
@@ -817,22 +1063,52 @@ class ImeCompletionEngine:
         candidates: list[ImeCandidate] = []
         for row, text in enumerate(decoded):
             normalized = normalize_candidate(text)
+            normalized, decoded_terminal = truncate_at_terminal(normalized)
+            effective_count = counts_cpu[row]
+            effective_score_sum = score_sums[row]
+            if decoded_terminal and stop_cpu[row] == 0:
+                token_ids = output_cpu[row, : counts_cpu[row]].tolist()
+                for consumed in range(1, counts_cpu[row] + 1):
+                    partial_text = self.llm.tokenizer.decode(
+                        token_ids[:consumed],
+                        skip_special_tokens=True,
+                        clean_up_tokenization_spaces=False,
+                    )
+                    if TERMINAL_TEXT_PATTERN.search(
+                        normalize_candidate(partial_text)
+                    ):
+                        effective_count = consumed
+                        effective_score_sum = float(
+                            token_logprobs_cpu[row, :consumed].sum().item()
+                        )
+                        break
             reasons = invalid_reasons(normalized, config, prefix)
-            average = score_sums[row] / counts_cpu[row] if counts_cpu[row] else float("-inf")
+            average = (
+                effective_score_sum / effective_count
+                if effective_count
+                else float("-inf")
+            )
             score = average - soft_penalty(normalized) if not reasons else float("-inf")
             stop_reason = {1: "eos", 2: "terminal_punctuation"}.get(
-                stop_cpu[row], "max_new_tokens"
+                stop_cpu[row],
+                "decoded_terminal" if decoded_terminal else "max_new_tokens",
             )
             candidates.append(ImeCandidate(
                 text=normalized,
-                token_count=counts_cpu[row],
+                token_count=effective_count,
                 average_logprob=average,
                 base_score=score,
                 selection_score=score,
                 stop_reason=stop_reason,
                 invalid_reasons=reasons,
             ))
-        return candidates, allocated_pages, sum(counts_cpu), cancelled
+        return (
+            candidates,
+            allocated_pages,
+            sum(counts_cpu),
+            active_model_tokens,
+            cancelled,
+        )
 
     def _prepare_prefix(
         self,

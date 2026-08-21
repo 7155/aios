@@ -31,7 +31,8 @@ def test_candidate_group_returns_three_and_recycles_branch_pages(
     result = engine.complete("没关系，你先忙你的，", ImeGenerationConfig(seed=7))
     assert len(result.candidates) == 3
     assert len({item.text for item in result.candidates}) == 3
-    assert result.sampling_attempts in {8, 12}
+    assert 8 <= result.sampling_attempts <= 24
+    assert result.refill_stop_reason == "filled"
     assert engine.llm.num_pages - engine.llm.cache_manager.available_size == result.prefix_tokens
 
 

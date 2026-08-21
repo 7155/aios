@@ -20,6 +20,44 @@ class ModelConfig:
     max_position_embeddings: int
     tie_word_embeddings: bool
     model_type: str = "unknown"
+    architecture_revision: str = ""
+    residual_type: str = "standard"
+    attnres_num_blocks: int = 0
+    attnres_alpha: float = 1.0
+    attnres_backend: str = "triton"
+
+    def __post_init__(self) -> None:
+        if self.residual_type not in {"standard", "block_attnres"}:
+            raise ValueError(
+                "residual_type must be 'standard' or 'block_attnres'"
+            )
+        if self.attnres_backend not in {
+            "reference", "eager", "compiled", "triton"
+        }:
+            raise ValueError(
+                "attnres_backend must be 'reference', 'eager', 'compiled', "
+                "or 'triton'"
+            )
+        if self.residual_type == "block_attnres":
+            if self.attnres_num_blocks < 1:
+                raise ValueError(
+                    "block_attnres requires attnres_num_blocks >= 1"
+                )
+            if self.num_layers % self.attnres_num_blocks:
+                raise ValueError(
+                    "num_layers must be divisible by attnres_num_blocks"
+                )
+            if float(self.attnres_alpha) != 1.0:
+                raise ValueError(
+                    "AIOS only serves fully migrated Block AttnRes snapshots "
+                    "with attnres_alpha=1.0"
+                )
+
+    @property
+    def layers_per_attnres_block(self) -> int:
+        if self.residual_type != "block_attnres":
+            raise ValueError("standard residual models do not have AttnRes blocks")
+        return self.num_layers // self.attnres_num_blocks
 
     @classmethod
     def from_hf(cls, config) -> ModelConfig:
@@ -40,6 +78,11 @@ class ModelConfig:
             max_position_embeddings=config.max_position_embeddings,
             tie_word_embeddings=getattr(config, "tie_word_embeddings", False),
             model_type=getattr(config, "model_type", "unknown"),
+            architecture_revision=getattr(config, "architecture_revision", ""),
+            residual_type=getattr(config, "residual_type", "standard"),
+            attnres_num_blocks=getattr(config, "attnres_num_blocks", 0),
+            attnres_alpha=getattr(config, "attnres_alpha", 1.0),
+            attnres_backend=getattr(config, "attnres_backend", "triton"),
         )
 
     @classmethod
@@ -62,4 +105,9 @@ class ModelConfig:
             max_position_embeddings=data.get("max_position_embeddings", 32768),
             tie_word_embeddings=data.get("tie_word_embeddings", False),
             model_type=data.get("model_type", "unknown"),
+            architecture_revision=data.get("architecture_revision", ""),
+            residual_type=data.get("residual_type", "standard"),
+            attnres_num_blocks=data.get("attnres_num_blocks", 0),
+            attnres_alpha=data.get("attnres_alpha", 1.0),
+            attnres_backend=data.get("attnres_backend", "triton"),
         )

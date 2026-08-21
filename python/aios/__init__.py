@@ -2,6 +2,7 @@ from aios.llm import LLM
 from aios.engine import Sampler
 from aios.core import SamplingParams
 from aios.ime import (
+    CandidatePoolStats,
     CancellationToken,
     ImeCandidate,
     ImeCandidateScore,
@@ -9,11 +10,15 @@ from aios.ime import (
     ImeCompletionResult,
     ImeGenerationConfig,
     ImeScoringResult,
+    adaptive_refill_attempts,
+    candidate_pool_stats,
     token_longest_common_prefix,
+    truncate_at_terminal,
 )
 
 __all__ = [
     "CancellationToken",
+    "CandidatePoolStats",
     "ImeCandidate",
     "ImeCandidateScore",
     "ImeCompletionEngine",
@@ -23,5 +28,8 @@ __all__ = [
     "LLM",
     "Sampler",
     "SamplingParams",
+    "adaptive_refill_attempts",
+    "candidate_pool_stats",
     "token_longest_common_prefix",
+    "truncate_at_terminal",
 ]

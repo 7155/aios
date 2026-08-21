@@ -217,6 +217,28 @@ def build_deployment_config(
             "untied checkpoint is missing lm_head.weight; refusing to tie it silently"
         )
 
+    residual_type = str(_pick(source, "residual_type", default="standard"))
+    if residual_type not in {"standard", "block_attnres"}:
+        raise ValueError(f"unsupported residual_type: {residual_type}")
+    attnres_num_blocks = int(
+        _pick(source, "attnres_num_blocks", default=0)
+    )
+    attnres_alpha = float(_pick(source, "attnres_alpha", default=1.0))
+    if residual_type == "block_attnres":
+        if attnres_num_blocks < 1 or len(layer_ids) % attnres_num_blocks:
+            raise ValueError(
+                "Block AttnRes requires a positive block count that divides "
+                "the number of layers"
+            )
+        if attnres_alpha != 1.0:
+            raise ValueError(
+                "deployment export requires a fully migrated AttnRes alpha=1 snapshot"
+            )
+        if str(_pick(source, "attnres_query_init", default="zeros")) != "zeros":
+            raise ValueError("only zero-initialized AttnRes query lineage is supported")
+    elif attnres_num_blocks:
+        raise ValueError("standard residual config must set attnres_num_blocks=0")
+
     config = dict(source)
     config.update({
         "architectures": ["MiniMindIMEForCausalLM"],
@@ -241,7 +263,16 @@ def build_deployment_config(
         "inference_rope_scaling": False,
         "mtp_enabled": False,
         "torch_dtype": dtype_name,
+        "architecture_revision": str(
+            _pick(source, "architecture_revision", default="")
+        ),
+        "residual_type": residual_type,
+        "attnres_num_blocks": attnres_num_blocks,
+        "attnres_alpha": attnres_alpha,
+        "attnres_backend": "triton",
     })
+    if residual_type == "block_attnres":
+        config["layers_per_attnres_block"] = len(layer_ids) // attnres_num_blocks
     config.pop("mtp_intermediate_size", None)
     return config
 
@@ -263,6 +294,18 @@ def required_tensor_names(config: Mapping[str, Any]) -> list[str]:
             f"{base}.mlp.up_proj.weight",
             f"{base}.mlp.down_proj.weight",
         ])
+        if config.get("residual_type", "standard") == "block_attnres":
+            names.extend([
+                f"{base}.attn_res_mixer.query",
+                f"{base}.attn_res_mixer.key_norm.weight",
+                f"{base}.mlp_res_mixer.query",
+                f"{base}.mlp_res_mixer.key_norm.weight",
+            ])
+    if config.get("residual_type", "standard") == "block_attnres":
+        names.extend([
+            "model.final_attn_res_mixer.query",
+            "model.final_attn_res_mixer.key_norm.weight",
+        ])
     if not bool(config["tie_word_embeddings"]):
         names.append("lm_head.weight")
     return names
@@ -278,12 +321,13 @@ def prepare_export_state(
         preview = "\n".join(f"  - {name}" for name in missing[:20])
         raise KeyError(f"checkpoint is missing required tensors:\n{preview}")
 
+    # Export the exact inference contract only. Training checkpoints may carry
+    # tied-head aliases or non-persistent experiment tensors that AIOS neither
+    # owns nor loads; omitting them keeps parameter and SHA accounting exact.
     exported = {
-        name: tensor.detach().to(dtype=dtype, device="cpu").contiguous()
-        for name, tensor in state.items()
+        name: state[name].detach().to(dtype=dtype, device="cpu").contiguous()
+        for name in required_tensor_names(config)
     }
-    if bool(config["tie_word_embeddings"]):
-        exported.pop("lm_head.weight", None)
     return exported
 
 
@@ -339,7 +383,7 @@ def main() -> None:
         tensor.numel() * tensor.element_size() for tensor in exported.values()
     )
     manifest = {
-        "schema_version": "aios.minimind_ime_bundle.v2",
+        "schema_version": "aios.minimind_ime_bundle.v3",
         "source_checkpoint": str(args.checkpoint.resolve()),
         "source_checkpoint_sha256": sha256(args.checkpoint),
         "model_sha256": sha256(model_path),
@@ -350,6 +394,10 @@ def main() -> None:
         "mtp_stripped": bool(stripped_mtp),
         "mtp_tensor_count_stripped": len(stripped_mtp),
         "tied_lm_head_omitted": bool(config["tie_word_embeddings"]),
+        "residual_type": config["residual_type"],
+        "attnres_num_blocks": config["attnres_num_blocks"],
+        "layers_per_attnres_block": config.get("layers_per_attnres_block", 0),
+        "attnres_alpha": config["attnres_alpha"],
         "tokenizer_files": copied,
         "config": config,
     }

@@ -1,10 +1,12 @@
 # AIOS-IME：面向中文输入法的低延迟 LLM 推理引擎
 
-AIOS-IME 是面向本地单用户中文输入法的 CUDA LLM 推理系统。它加载 MiniMind-IME 0.1B
-模型，在一次按键请求内并行生成多路候选，经过过滤、去重和排序后返回 Top-3。
+AIOS-IME 是面向本地单用户中文输入法的 CUDA LLM 推理系统。它支持 MiniMind-IME 0.1B
+标准残差模型与 0.214B Block AttnRes 模型，在一次按键请求内并行生成多路候选，经过过滤、
+去重和排序后返回 Top-3。
 
 项目主路径是中文前缀补全，重点优化短前缀、短输出、单用户和低显存场景，支持共享
-Prefix KV、候选组批量 Decode、跨按键 Prefix 复用、latest-wins 取消以及 Top-3 多样性选择。
+Prefix KV、候选组批量 Decode、跨按键 Prefix 复用、latest-wins 取消、AttnRes Triton 融合
+以及无效候选自适应补采样。
 同拼音候选的语境重排序作为可选扩展，不是模型直接读取拼音生成中文。
 
 ## 项目来源
@@ -112,6 +114,39 @@ Top 3：，下次见面时一起看看。
 
 ## 性能
 
+### 0.214B Block AttnRes
+
+最新部署模型包含 32 个 Transformer layers、8 个 AttnRes blocks。每层在 Attention 和 MLP
+前各执行一次 depth mix，最终输出前再执行一次，共 65 次 Mixer。AIOS 使用两段 Triton
+kernel 完成 RMS score 与 depth-softmax/value aggregation，不生成完整 normalized bank，也
+不在每层物化 `cat(bank, partial)`。
+
+固定 `N=8, D=768, 65 mixers` 的 CUDA profiler：
+
+| AttnRes backend | Pipeline | Active tokens/s | Peak allocated |
+|---|---:|---:|---:|
+| Direct Eager（训练语义） | 17.34 ms | 461.47 | 9.48 MiB |
+| `torch.compile` hot path | 15.87 ms | 504.12 | 9.27 MiB |
+| Triton two-kernel | **4.02 ms** | **1,989.46** | **0.94 MiB** |
+
+在完整固定 8 路 CandidateGroup 上，Triton 相对物化-bank Reference 将 p50/p95 从
+`389.47/422.43 ms` 降到 `254.99/261.44 ms`，active tokens/s 从 `237.35` 提高到
+`366.70`。相同 seed 下 Top-1/3/10/50 token 集合和 8 路候选文本全部一致。
+
+无效候选恢复使用“首轮 8 路 + 按过滤后 unique-valid yield 自适应补到最多 24 路”。在
+30 条 DS Daily validation 上：
+
+| 候选策略 | 满三条 | 三条互异 | 平均路数 | Top-3 exact | p50 / p95 |
+|---|---:|---:|---:|---:|---:|
+| 固定 8 路 | 23.33% | 23.33% | 8.0 | 30.00% | 251.70 / 285.78 ms |
+| 自适应最多 24 路 | **100%** | **100%** | 13.6 | **33.33%** | 505.54 / 557.24 ms |
+
+补采样只在首轮过滤、去重后不足三条时触发；每轮旧 suffix KV 先释放，因此峰值 allocated
+保持在约 468 MiB。完整实现、数值合同、CUDA profiler 和复现命令见
+[0.214B AttnRes 与补采样报告](reports/aios_ime_attnres_refill_20260821.md)。
+
+### 0.1B 标准残差基线
+
 ![AIOS-IME performance](docs/images/aios-ime-performance.svg)
 
 测试环境：NVIDIA GeForce RTX 4080 Laptop GPU、BF16、5 次预热、30 条完整 Top-3
@@ -131,6 +166,7 @@ Prefill、候选组 Decode、原始 logprob、解码、过滤、去重和 Top-3 
 
 详细结果：
 
+- [0.214B AttnRes 与自适应补采样](reports/aios_ime_attnres_refill_20260821.md)
 - [最终性能报告](reports/aios_ime_benchmark_final_20260814.md)
 - [冻结评测](reports/aios_ime_frozen_eval_v2_20260814.md)
 - [采样与导出优化 A/B](reports/aios_ime_runtime_hardening_20260815.md)
@@ -145,7 +181,7 @@ Prefill、候选组 Decode、原始 logprob、解码、过滤、去重和 Top-3 
 | 输入法约束 | 推理设计 |
 |---|---|
 | 本地单用户，没有用户 B 等待合批 | 只批处理当前前缀内部的候选分支，不把跨请求 Continuous Batching 计入收益 |
-| 候选栏必须稳定显示三条 | 首轮独立生成 8 路；过滤后不足三条时再补 4 路 |
+| 候选栏必须稳定显示三条 | 首轮独立生成 8 路；按 unique-valid yield 分轮补采样，总预算最多 24 路 |
 | 用户继续输入后旧结果立即失效 | latest-wins generation ID；当前 token step 后丢弃旧组并释放 suffix KV |
 | 相邻按键共享大部分前缀 | 重新分词后计算 token-LCP，只复用稳定 token 的 Prefix KV |
 | 多条候选拥有同一个中文前缀 | Prefix 只 Prefill 一次；候选 row 共享物理 Paged KV page |
@@ -167,12 +203,12 @@ vLLM 面向通用大模型服务，通过跨请求调度、PagedAttention、Pref
 | 优化目标 | 多请求吞吐、GPU 利用率和通用请求延迟 | 一次按键的完整 Top-3 p50/p95、候选完整率和峰值显存 |
 | 调度对象 | 多个独立请求/sequence | 当前按键内部的一个 CandidateGroup；不存在等待合批的用户 B |
 | 请求生命周期 | 通用请求排队、运行、结束或 abort | latest-wins；新按键使旧 generation 失效，token-step 结束后丢弃旧输出并释放 suffix KV |
-| 多候选生成 | `n` 路并行采样属于通用请求参数 | 首轮独立生成 8 路；过滤后不足三条且仍在 deadline 内才补 4 路 |
+| 多候选生成 | `n` 路并行采样属于通用请求参数 | 首轮独立生成 8 路；过滤后按缺口与有效产出规划 2～8 路 refill |
 | Prefix 复用 | APC 对可复用的完整 token block 做哈希缓存 | 每次按键重新分词，计算相邻输入的精确 token-LCP，只保留稳定 token page |
 | 候选 KV | 通用 PagedAttention 管理 sequence block | 同组候选借用同一组物理 Prefix page；后缀页独占，结束 row 立即压缩并释放 |
 | 采样与评分 | 通用 Temperature、Top-k、Top-p 和输出序列 | 采样前保留原始模型 logprob，随后执行中文过滤、显示去重、软惩罚和 MMR Top-3 |
 | 输出契约 | 通用文本生成、流式输出或批量结果 | 固定 `[BOS] + 裸中文前缀`，输出三条可直接进入候选栏的短后缀 |
-| 显存策略 | 面向不同模型和并发规模配置 cache | 0.1B 本地模型使用 256 个 token page 和 1 MiB workspace 的低显存 profile |
+| 显存策略 | 面向不同模型和并发规模配置 cache | 候选轮次串行复用 suffix KV；0.1B/0.214B 均使用显式有界 KV 与 workspace |
 | 评测 | 通用吞吐、token latency 和服务指标 | 完整 Top-3 墙钟延迟、满三条率、互异率、冻结排序质量和取消后的 KV 回收 |
 
 这些目标落实为 CandidateGroup 组内调度、latest-wins 生命周期、精确 token-LCP 缓存复用、
@@ -181,26 +217,31 @@ vLLM 面向通用大模型服务，通过跨请求调度、PagedAttention、Pref
 ## 推理设计
 
 - 裸中文上下文输入，固定使用 `[BOS] + context tokens`，不套 Chat Template。
-- 适配 MiniMind-IME 0.1B dense GQA 权重、BF16 推理和 FlashInfer Attention。
+- 适配 MiniMind-IME 0.1B standard residual 与 0.214B Block AttnRes 权重、BF16 和 FlashInfer Attention。
+- Block AttnRes 使用共享 Triton hot path；训练期迁移 alpha 不进入部署，运行时只接受 `alpha=1`。
 - 同一前缀只执行一次 Prefill，8 条候选共享 Prefix Paged KV。
 - 候选随机流由 `(candidate_seed, token_step)` 唯一确定，row 压缩不改变其余分支结果。
 - `min_new_tokens` 前在采样副本屏蔽 EOS/stop token，排序仍使用原始模型 logprob。
 - 统一执行中文合法性过滤、显示归一化去重、软惩罚和字符 bigram MMR Top-3。
+- 首轮不足三条时按有效候选率规划 refill，并用新 seed、渐进温度与精确序列禁采避免重复失败。
 - 低显存配置限制 KV token page 和 FlashInfer workspace，不按剩余显存无限预分配。
 - 导出器校验模型结构、权重形状、tied embedding 和 MTP 剥离，拒绝静默错误加载。
 
 ## 关键取舍
 
+以下是 0.1B 阶段用于确定 12-token 首轮预算的历史消融；0.214B 当前默认使用自适应
+`8 → 最多 24` 路恢复策略。
+
 | 方案 | Top-3 p50 / p95 | 满三条 | 结论 |
 |---|---:|---:|---|
 | 固定 8 路、12-token | 87.72 / 140.90 ms | 93.33% | 两组不足三条 |
-| 8 路 + 按需补 4 路、12-token | **81.98 / 109.97 ms** | **100%** | 当前默认 |
+| 8 路 + 按需补 4 路、12-token | **81.98 / 109.97 ms** | **100%** | 0.1B 入选方案 |
 | 8 路 + 按需补 4 路、16-token | 115.55 / 225.71 ms | 86.67% | 长病句和截断增加，弃用 |
 
 - **不直接只生成 3 路**：任意一路被过滤后，候选栏就少于三条；8 路首轮在质量、完整率和
   显存之间更稳定。
-- **不为补候选无条件生成 12 路**：大多数请求 8 路已经足够，只有不足三条时才承担 refill
-  成本。
+- **不为补候选无条件生成 24 路**：先统计过滤后的 unique-valid yield，再按 Top-3 缺口
+  规划 2～8 路；达到三条、deadline 或总预算任一条件即停止。
 - **不把 Continuous Batching 当作单用户收益**：当前产品只有一个有效候选组，核心并行性
   来自同一前缀的候选分支。
 - **不盲目延长 Decode**：16-token A/B 同时恶化 p50、p95 和候选完整率，默认保持 12-token
@@ -212,26 +253,29 @@ vLLM 面向通用大模型服务，通过跨请求调度、PagedAttention、Pref
 
 输入经过裸中文分词与 token-LCP 匹配后只执行一次 Prefix Prefill。8 条候选共享
 Prefix Paged KV，只为各自生成的后缀分配新页；完成分支会立即移出 active rows。解码结果
-依次经过合法性过滤、显示归一化、去重和 MMR 排序，有效候选不足三条时再补采样 4 路。
+依次经过合法性过滤、显示归一化、去重和 MMR 排序，有效候选不足三条时按当前有效产出
+自适应补采样，最多使用 24 路总预算。
 
 ![AIOS-IME CandidateGroup and Top-3 selection](docs/images/aios-ime-candidate-group.svg)
 
 ## 部署模型
 
-| 项目 | 值 |
-|---|---:|
-| 在线参数 | 100,687,360 |
-| Decoder layers | 14 |
-| Hidden / Intermediate | 768 / 2,048 |
-| Q heads / KV heads | 12 / 4 |
-| Head dim | 64 |
-| Vocabulary | 16,384 |
-| Context limit | 512 tokens |
-| Precision | BF16 |
-| 权重大小 | 192.05 MiB |
-| KV 大小 | 14 KiB/token |
+| 项目 | 0.1B Standard | 0.214B Block AttnRes |
+|---|---:|---:|
+| 在线参数 | 100,687,360 | 214,063,360 |
+| Decoder layers | 14 | 32 |
+| AttnRes blocks | — | 8 × 4 layers |
+| Hidden / Intermediate | 768 / 2,048 | 768 / 2,048 |
+| Q heads / KV heads | 12 / 4 | 12 / 4 |
+| Head dim | 64 | 64 |
+| Vocabulary | 16,384 | 16,384 |
+| Context limit | 512 tokens | 512 tokens |
+| Precision | BF16 | BF16 |
+| 权重大小 | 192.05 MiB | 408.29 MiB |
+| KV 大小 | 14 KiB/token | 32 KiB/token |
 
-模型使用 GQA、RMSNorm、QK Norm、普通 RoPE 和 SwiGLU，不启用 YaRN。LM Head 与 Token
+两个模型都使用 GQA、RMSNorm、QK Norm、普通 RoPE 和 SwiGLU，不启用 YaRN。0.214B 在
+这些相同算子外增加 block-local residual delta bank 与 depth routing。LM Head 与 Token
 Embedding 共享权重，训练期 MTP 模块不进入部署模型。模型训练、数据清洗、Tokenizer、
 Teacher 数据和偏好优化由独立的 MiniMind-IME 训练仓库维护；本仓库负责 checkpoint 校验、
 部署导出和推理评测。
@@ -242,7 +286,7 @@ Teacher 数据和偏好优化由独立的 MiniMind-IME 训练仓库维护；本�
 
 ## 评测结果
 
-冻结评测分为三类：
+0.1B 标准残差模型的冻结评测分为三类；0.214B 的推理与补采样结果见上方性能表和专项报告：
 
 | Lane | 样本数 | 指标 |
 |---|---:|---:|
@@ -292,7 +336,7 @@ Teacher 数据和偏好优化由独立的 MiniMind-IME 训练仓库维护；本�
 ```bash
 git clone https://github.com/7155/aios.git
 cd aios
-git switch feat/aios-ime
+git switch main
 
 source scripts/activate_aios.sh
 python -m pip install --no-deps -e .
@@ -303,9 +347,9 @@ python -m pip install --no-deps -e .
 ```bash
 python scripts/export_minimind_ime.py \
   --checkpoint /path/to/best_validation.pt \
-  --config /path/to/ime_100m_v1.json \
+  --config /path/to/model_config.json \
   --tokenizer-dir /path/to/tokenizer_dir \
-  --output-dir /path/to/minimind-ime-0.1b-aios
+  --output-dir /path/to/minimind-ime-aios
 ```
 
 导出器会执行以下检查：
@@ -317,6 +361,7 @@ python scripts/export_minimind_ime.py \
 - SiLU/SwiGLU 激活函数支持。
 - Tied/untied LM Head 与 Embedding 是否一致。
 - MTP 训练辅助权重是否被移除。
+- Block AttnRes 的 block 划分、`alpha=1`、每层两个 Mixer 与 final Mixer 权重是否完整。
 
 默认导出 BF16 权重。输出目录非空时需要显式添加 `--force`。
 
@@ -336,7 +381,7 @@ aios_manifest.json
 
 ```bash
 python scripts/run_aios_ime.py \
-  --model /path/to/minimind-ime-0.1b-aios \
+  --model /path/to/minimind-ime-aios \
   --seed 7 \
   --prefix '没关系，你先忙你的，'
 ```
@@ -347,9 +392,9 @@ Python API：
 from aios import ImeCompletionEngine, ImeGenerationConfig, LLM
 
 llm = LLM(
-    "/path/to/minimind-ime-0.1b-aios",
-    kv_cache_max_tokens=256,
-    attention_workspace_size=1 * 2**20,
+    "/path/to/minimind-ime-aios",
+    kv_cache_max_tokens=512,
+    attention_workspace_size=8 * 2**20,
 )
 engine = ImeCompletionEngine(llm)
 
@@ -381,10 +426,10 @@ print([candidate.text for candidate in result.candidates])
 
 | 参数 | 首轮 | 补采样 |
 |---|---:|---:|
-| 候选数 | 8 | 4 |
-| Temperature | 0.35 | 0.55 |
-| Top-k | 50 | 80 |
-| Top-p | 0.9 | 0.9 |
+| 候选数 | 8 | 每轮 2～8，总预算最多 24 |
+| Temperature | 0.35 | 0.75 → 0.95 |
+| Top-k | 50 | 96 → 160 |
+| Top-p | 0.9 | 0.95 |
 | 最大输出 | 12 tokens | 12 tokens |
 
 采样参数用于扩大候选覆盖，排序使用未经过 temperature、Top-k、Top-p 和 stop mask 修改的
@@ -402,14 +447,17 @@ MMR(c)              = base_score(c) - λ × max similarity(c, selected)
 2. 归一化空白和尾标点，合并显示等价候选。
 3. 对不自然叠词和过短候选应用软惩罚。
 4. 使用字符 bigram Jaccard 相似度执行 MMR Top-3。
-5. 有效候选不足三条时执行一次补采样。
+5. 统计过滤后的 unique-valid yield，按 Top-3 缺口估算下一轮 2～8 个新分支。
+6. 补采样使用新 seed，并阻止候选在共享至少两个 token 后完整复现已见序列。
+7. 满三条、到达 deadline 或用完 24 路预算时停止。
 
 ## Prefix KV 与候选 KV
 
-MiniMind-IME 0.1B 每个 token 的 KV 大小为：
+MiniMind-IME 的每 token KV 只由层数、KV heads、head dim 和 dtype 决定：
 
 ```text
-2(K/V) × 14 layers × 4 KV heads × 64 head_dim × 2 bytes = 14 KiB
+0.1B： 2(K/V) × 14 layers × 4 KV heads × 64 head_dim × 2 bytes = 14 KiB
+0.214B：2(K/V) × 32 layers × 4 KV heads × 64 head_dim × 2 bytes = 32 KiB
 ```
 
 同一候选组的所有 page-table row 指向同一组 Prefix page，只有生成后的 suffix page 独占。
@@ -429,24 +477,36 @@ MiniMind-IME 0.1B 每个 token 的 KV 大小为：
 CPU 与 GPU 测试：
 
 ```bash
-AIOS_IME_MODEL=/path/to/minimind-ime-0.1b-aios \
-  pytest -q tests/test_ime.py tests/test_ime_export.py tests/test_ime_gpu.py
+pytest -q
+
+AIOS_IME_MODEL=/path/to/minimind-ime-aios \
+  pytest -q tests/test_ime_gpu.py
 ```
 
-当前测试结果：`19 passed`。
+当前回归结果：`29 passed, 4 skipped`；旧 0.1B GPU 兼容测试 `4 passed`；0.214B
+CandidateGroup、Prefix LCP 与 latest-wins GPU smoke `3 passed`。
 
 性能测试：
 
 ```bash
 python benchmark/bench_ime.py \
-  --model /path/to/minimind-ime-0.1b-aios
+  --model /path/to/minimind-ime-aios \
+  --attnres-backend triton
+
+python benchmark/profile_attnres.py \
+  --backend triton \
+  --active-tokens 8 \
+  --hidden-size 768
+
+python scripts/check_attnres_runtime_equivalence.py \
+  --model /path/to/minimind-ime-0.214b-aios
 ```
 
 冻结评测：
 
 ```bash
 python scripts/eval_aios_ime_frozen.py \
-  --model /path/to/minimind-ime-0.1b-aios \
+  --model /path/to/minimind-ime-aios \
   --eval-dir /path/to/ime_eval_v2_frozen
 ```
 
