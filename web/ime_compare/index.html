@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="AIOS-IME 本地双模型 Top-3 中文前缀补全对比台"
+    />
+    <title>AIOS-IME 推理对比台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="返回页面顶部">
+          <span class="brand-mark" aria-hidden="true">A</span>
+          <span>
+            <strong>AIOS-IME</strong>
+            <small>Inference compare</small>
+          </span>
+        </a>
+        <div class="runtime-state" id="runtime-state">
+          <span class="state-dot" aria-hidden="true"></span>
+          <span id="runtime-state-text">连接本地服务</span>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="hero" aria-labelledby="page-title">
+          <p class="eyebrow">LOCAL · SINGLE USER · TOP-3</p>
+          <h1 id="page-title">同一个中文前缀，<br />直接比较两个模型。</h1>
+          <p class="hero-copy">
+            左右并排查看 Top-3、补采样、延迟与显存。A/B 在同一块 GPU 上串行执行，
+            不让并发争抢污染结果。
+          </p>
+          <div class="contract-row" aria-label="推理合同">
+            <span>裸中文前缀</span>
+            <span>独立多路采样</span>
+            <span>过滤与去重</span>
+            <span>最终 Top-3</span>
+          </div>
+        </section>
+
+        <div class="demo-banner" id="demo-banner" hidden>
+          当前是界面预览模式：页面数据为固定演示结果，不代表真实模型效果。
+        </div>
+
+        <form id="compare-form" class="workspace">
+          <section class="input-panel" aria-labelledby="input-heading">
+            <div class="section-heading">
+              <div>
+                <span class="section-number">01</span>
+                <h2 id="input-heading">输入前缀</h2>
+              </div>
+              <span class="shortcut">Ctrl / ⌘ + Enter 运行</span>
+            </div>
+            <label class="sr-only" for="prefix-input">中文前缀</label>
+            <textarea
+              id="prefix-input"
+              name="prefix"
+              rows="3"
+              maxlength="512"
+              spellcheck="false"
+              placeholder="例如：今天下班有点晚，"
+              required
+            ></textarea>
+            <div class="input-footer">
+              <div class="example-list" id="example-list" aria-label="示例前缀"></div>
+              <span class="char-count"><strong id="char-count">0</strong> / 512</span>
+            </div>
+          </section>
+
+          <section class="model-config-section" aria-labelledby="models-heading">
+            <div class="section-heading">
+              <div>
+                <span class="section-number">02</span>
+                <h2 id="models-heading">比较对象</h2>
+              </div>
+              <span class="section-note">路径改变后会自动重载该侧 worker</span>
+            </div>
+
+            <div class="model-config-grid">
+              <article class="model-config-card model-a">
+                <div class="model-card-heading">
+                  <span class="model-letter">A</span>
+                  <label for="label-a">当前模型</label>
+                </div>
+                <input id="label-a" class="model-label-input" autocomplete="off" />
+                <label class="field-label" for="model-path-a">本地部署目录</label>
+                <input id="model-path-a" class="path-input" autocomplete="off" />
+                <div class="compact-fields">
+                  <label>
+                    <span>AttnRes backend</span>
+                    <select id="backend-a">
+                      <option value="default">模型默认</option>
+                      <option value="triton">Triton</option>
+                      <option value="compiled">torch.compile</option>
+                      <option value="eager">Direct eager</option>
+                      <option value="reference">Materialized reference</option>
+                    </select>
+                  </label>
+                </div>
+              </article>
+
+              <article class="model-config-card model-b">
+                <div class="model-card-heading">
+                  <span class="model-letter">B</span>
+                  <label for="label-b">对比模型</label>
+                </div>
+                <input id="label-b" class="model-label-input" autocomplete="off" />
+                <label class="field-label" for="model-path-b">本地部署目录</label>
+                <input id="model-path-b" class="path-input" autocomplete="off" />
+                <div class="compact-fields">
+                  <label>
+                    <span>AttnRes backend</span>
+                    <select id="backend-b">
+                      <option value="default">模型默认</option>
+                      <option value="triton">Triton</option>
+                      <option value="compiled">torch.compile</option>
+                      <option value="eager">Direct eager</option>
+                      <option value="reference">Materialized reference</option>
+                    </select>
+                  </label>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <details class="advanced-panel">
+            <summary>
+              <span>生成与测量参数</span>
+              <span class="summary-hint">默认使用 8 → 最多 24 路补采样</span>
+            </summary>
+            <div class="advanced-grid">
+              <label><span>首轮路数</span><input id="sampling-attempts" type="number" min="3" max="32" /></label>
+              <label><span>总路数预算</span><input id="max-sampling-attempts" type="number" min="3" max="64" /></label>
+              <label><span>每轮补采样</span><input id="refill-batch-size" type="number" min="1" max="16" /></label>
+              <label><span>最大输出 token</span><input id="max-new-tokens" type="number" min="1" max="64" /></label>
+              <label><span>Temperature</span><input id="temperature" type="number" min="0.01" max="2" step="0.01" /></label>
+              <label><span>Top-k</span><input id="top-k" type="number" min="1" max="512" /></label>
+              <label><span>Top-p</span><input id="top-p" type="number" min="0.01" max="1" step="0.01" /></label>
+              <label><span>随机种子</span><input id="seed" type="number" min="0" /></label>
+              <label><span>多样性系数</span><input id="diversity-lambda" type="number" min="0" max="2" step="0.05" /></label>
+              <label><span>运行顺序</span>
+                <select id="run-order">
+                  <option value="a_then_b">先 A，后 B</option>
+                  <option value="b_then_a">先 B，后 A</option>
+                </select>
+              </label>
+            </div>
+            <label class="check-row">
+              <input id="reset-prefix-cache" type="checkbox" />
+              <span>
+                每次运行前清空 Prefix KV
+                <small>用于独立前缀延迟 A/B；关闭时可观察连续按键复用。</small>
+              </span>
+            </label>
+          </details>
+
+          <div class="action-row">
+            <button class="primary-button" type="submit" id="compare-button">
+              <span>运行 A / B 对比</span>
+              <span class="button-arrow" aria-hidden="true">↗</span>
+            </button>
+            <button class="secondary-button" type="button" id="run-a-button">只运行 A</button>
+            <button class="secondary-button" type="button" id="run-b-button">只运行 B</button>
+            <button class="text-button" type="button" id="unload-button">释放模型显存</button>
+          </div>
+          <p class="form-error" id="form-error" role="alert" hidden></p>
+        </form>
+
+        <section class="result-section" id="result-section" aria-labelledby="results-heading">
+          <div class="section-heading result-heading">
+            <div>
+              <span class="section-number">03</span>
+              <h2 id="results-heading">Top-3 结果</h2>
+            </div>
+            <span id="result-timestamp" class="section-note">等待首次推理</span>
+          </div>
+
+          <div class="comparison-strip" id="comparison-strip" hidden>
+            <div><strong id="overlap-value">—</strong><span>Top-3 重合</span></div>
+            <div><strong id="rank-value">—</strong><span>同排名一致</span></div>
+            <div><strong id="lcp-value">—</strong><span>Top-1 公共前缀</span></div>
+            <div><strong id="latency-value">—</strong><span>延迟差</span></div>
+          </div>
+
+          <div class="result-grid">
+            <article class="result-card result-a" id="result-card-a">
+              <header class="result-card-header">
+                <div>
+                  <span class="model-letter">A</span>
+                  <div>
+                    <h3 id="result-label-a">当前模型</h3>
+                    <p id="result-meta-a">尚未运行</p>
+                  </div>
+                </div>
+                <span class="run-status idle" id="status-a">待运行</span>
+              </header>
+              <div class="candidate-list" id="candidates-a">
+                <div class="empty-state">输入前缀后运行模型 A</div>
+              </div>
+              <div class="metric-grid" id="metrics-a" hidden></div>
+              <details class="raw-panel" id="raw-panel-a" hidden>
+                <summary>查看全部原始候选</summary>
+                <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-a"></tbody></table></div>
+              </details>
+            </article>
+
+            <article class="result-card result-b" id="result-card-b">
+              <header class="result-card-header">
+                <div>
+                  <span class="model-letter">B</span>
+                  <div>
+                    <h3 id="result-label-b">对比模型</h3>
+                    <p id="result-meta-b">尚未运行</p>
+                  </div>
+                </div>
+                <span class="run-status idle" id="status-b">待运行</span>
+              </header>
+              <div class="candidate-list" id="candidates-b">
+                <div class="empty-state">输入前缀后运行模型 B</div>
+              </div>
+              <div class="metric-grid" id="metrics-b" hidden></div>
+              <details class="raw-panel" id="raw-panel-b" hidden>
+                <summary>查看全部原始候选</summary>
+                <div class="raw-table-wrap"><table><thead><tr><th>#</th><th>候选</th><th>平均 logprob</th><th>状态</th></tr></thead><tbody id="raw-b"></tbody></table></div>
+              </details>
+            </article>
+          </div>
+        </section>
+
+        <section class="feedback-panel" id="feedback-panel" hidden aria-labelledby="feedback-heading">
+          <div>
+            <span class="section-number">04</span>
+            <h2 id="feedback-heading">你的判断</h2>
+            <p>记录哪一侧更自然，数据只保存在当前浏览器，可导出为 JSONL。</p>
+          </div>
+          <div class="feedback-actions" role="group" aria-label="选择更好的结果">
+            <button type="button" data-preference="a">A 更好</button>
+            <button type="button" data-preference="tie">差不多</button>
+            <button type="button" data-preference="b">B 更好</button>
+            <button type="button" data-preference="neither">都不好</button>
+          </div>
+          <div class="feedback-footer">
+            <span id="feedback-count">已记录 0 条</span>
+            <button type="button" class="text-button" id="export-feedback">导出 JSONL</button>
+            <button type="button" class="text-button danger" id="clear-feedback">清空记录</button>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>AIOS-IME · 本地单用户 CandidateGroup 推理</p>
+        <p>模型加载时间不计入 engine latency；首次 JIT 结果会标记为冷启动。</p>
+      </footer>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

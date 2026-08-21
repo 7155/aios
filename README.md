@@ -420,6 +420,53 @@ print([candidate.text for candidate in result.candidates])
 `mode="stable"` 使用整序列 varlen Prefill 复评分，减少 BF16 Prefill/Decode kernel 在
 近平局候选上的排序波动。这里传给模型的是词典召回后的中文候选，不是拼音字符串。
 
+## 推理对比前端
+
+仓库提供本地双栏推理对比台。同一个中文前缀会依次送入 A、B 两个模型，页面并排展示
+Top-3 和全部原始候选，并记录完整 CandidateGroup 延迟、GPU 事件延迟、active tokens/s、
+实际采样路数、补采样轮次、Prefix KV 复用量与峰值显存。
+
+比较 0.214B Block AttnRes 与 0.1B 标准残差模型：
+
+```bash
+source scripts/activate_aios.sh
+
+python scripts/run_ime_compare_frontend.py \
+  --model-a /path/to/minimind-ime-0.214b-aios \
+  --label-a '0.214B Block AttnRes' \
+  --backend-a triton \
+  --model-b /path/to/minimind-ime-0.1b-aios \
+  --label-b '0.1B Standard' \
+  --backend-b default
+```
+
+浏览器打开：
+
+```text
+http://127.0.0.1:7860
+```
+
+也可以让 A、B 指向同一个 0.214B 模型，只改变 `--backend-a` 和 `--backend-b`，对比
+`triton`、`compiled`、`eager` 或 `reference`。每个栏位使用独立子进程持有 AIOS 全局
+CUDA Context；A/B 默认在同一 GPU 上串行推理，不用并发争抢后的延迟作比较。
+
+页面支持三种使用方式：
+
+- “运行 A / B 对比”：同一前缀、相同 seed 和采样配置依次运行两侧。
+- “只运行 A / B”：快速查看单侧结果，不重跑另一侧。
+- “每次运行前清空 Prefix KV”：开启后测独立前缀；关闭后保留相邻按键 token-LCP 复用。
+
+首次请求可能包含 Triton 或 `torch.compile` 的 JIT 成本，因此页面会显示“冷启动”；模型
+加载耗时单独记录，不计入 `ImeCompletionEngine.latency_ms`。点击“释放模型显存”会关闭
+两个 worker。人工选择的“A 更好 / B 更好 / 差不多 / 都不好”只保存在当前浏览器，可导出
+为 JSONL，便于后续整理真实偏好数据。
+
+不加载 CUDA 权重时可以先预览完整交互：
+
+```bash
+python scripts/run_ime_compare_frontend.py --demo --open-browser
+```
+
 ## 候选生成与排序
 
 默认生成参数：
@@ -483,7 +530,7 @@ AIOS_IME_MODEL=/path/to/minimind-ime-aios \
   pytest -q tests/test_ime_gpu.py
 ```
 
-当前回归结果：`29 passed, 4 skipped`；旧 0.1B GPU 兼容测试 `4 passed`；0.214B
+当前回归结果：`36 passed, 4 skipped`；旧 0.1B GPU 兼容测试 `4 passed`；0.214B
 CandidateGroup、Prefix LCP 与 latest-wins GPU smoke `3 passed`。
 
 性能测试：
@@ -523,6 +570,7 @@ python scripts/render_aios_ime_figures.py
 ```text
 python/aios/
 ├── ime.py                   # CandidateGroup、Top-3、Prefix KV、取消与稳定评分
+├── ime_compare.py           # 双模型子进程、A/B 请求校验与比较指标
 ├── engine/sample.py         # Top-k/Top-p、原始 logprob、候选独立随机流
 ├── models/minimind_ime.py   # MiniMind-IME 模型适配器
 ├── attention/flashinfer.py  # varlen Prefill 与 Paged Decode
@@ -533,8 +581,11 @@ python/aios/
 scripts/
 ├── export_minimind_ime.py   # 部署模型导出
 ├── run_aios_ime.py          # Top-3 推理入口
+├── run_ime_compare_frontend.py # 本地双栏推理对比台
 ├── eval_aios_ime_frozen.py  # 冻结评测
 └── render_aios_ime_figures.py # 可重复生成 README 技术图
+
+web/ime_compare/             # 对比台 HTML、CSS 与浏览器交互
 
 benchmark/
 ├── bench_ime.py
@@ -542,6 +593,7 @@ benchmark/
 
 tests/
 ├── test_ime.py
+├── test_ime_compare.py
 ├── test_ime_export.py
 └── test_ime_gpu.py
 
