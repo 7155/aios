@@ -12,6 +12,10 @@
 
 本课先建立全局地图。后续五课分别下钻前向、布局与因果阶段、反向数学、反向 Kernel、验证与 AIOS 边界。
 
+![Triton FlashAttention 源码调用链、显存价值与 AIOS 边界](flashattention-source-map.svg)
+
+> 本图由仓库内 SVG 代码生成。它把源码调用链、`O/LSE` 保存策略以及 Dense Attention 与 AIOS Paged Serving 的边界放在一张图中；图负责建立结构直觉，正文继续承担公式、代码与事实边界的完整解释。
+
 ---
 
 ## 1. 学完本课应该能回答什么
