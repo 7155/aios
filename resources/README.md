@@ -2,7 +2,7 @@
 
 > 当前高级 CUDA 教材扩展基线：`1d63bca4cf24885a1b15897003e3481db53d8ada`（`main`）
 >
-> 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～44 课从零掌握 CUDA、Triton、FlashInfer、GPU 性能诊断与后续扩展。
+> 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～50 课从零掌握 CUDA、Triton、FlashInfer、GPU 性能诊断与 FlashAttention 源码实战。
 
 ## 第一篇：通用推理引擎基础
 
@@ -54,7 +54,9 @@
 
 > [打开 CUDA 长篇导航与验证说明](cuda-optimization/README.md)
 >
-> README 直接包含核心代码、逐行解释、Shape、地址、算术强度、资源生命周期与带答案的检验问题，不要求先打开源码。
+> README 直接包含核心代码、逐行解释、Shape、地址、算术强度、资源生命周期与带答案的练习题，不要求先打开源码。
+>
+> Lesson 45～50 固定分析外部教学仓库 `hkproj/triton-flash-attention@296ee44c8a238cd2192d13e22e9082251f1c1289`。它们是源码实战课程，不表示该 Dense Attention Kernel 已接入或替换 AIOS 当前 FlashInfer Runtime。
 
 | 课次 | 教材 | 核心问题 |
 |---:|---|---|
@@ -74,6 +76,12 @@
 | 42 | [Triton Matmul 与 Autotune](lesson-42-triton-matmul-autotune/README.md) | Tile、Pointer、Warp、Stage 怎样调优？ |
 | 43 | [CUDA Allocator 与碎片](lesson-43-cuda-memory-allocator/README.md) | allocated/reserved/nvidia-smi 为什么不同？ |
 | 44 | [Tensor Parallel 与 NCCL](lesson-44-tensor-parallel-nccl/README.md) | Column/Row Parallel 与 AllReduce 怎样协作？ |
+| 45 | [Triton FlashAttention 源码总览](lesson-45-triton-flash-attention-overview/README.md) | 一个文件怎样串起 Forward、Backward 与 Autograd？ |
+| 46 | [Forward Online Softmax Kernel](lesson-46-triton-flash-attention-forward/README.md) | `m/l/O_acc` 怎样逐行对应 Triton 源码？ |
+| 47 | [Grid、Block Pointer 与 Causal Stage](lesson-47-triton-flash-attention-layout-causal/README.md) | Program 怎样找到正确 Q/K/V Tile并切开因果区域？ |
+| 48 | [FlashAttention Backward 数学](lesson-48-triton-flash-attention-backward-math/README.md) | 只保存 O/LSE 怎样重算并得到 `dQ/dK/dV`？ |
+| 49 | [Backward Kernel 工作划分](lesson-49-triton-flash-attention-backward-kernels/README.md) | 怎样避免 Atomic 并裁掉 Causal 无效遍历？ |
+| 50 | [正确性、Benchmark 与 AIOS 边界](lesson-50-triton-flash-attention-validation/README.md) | 怎样建立可信证据而不夸大生产能力？ |
 
 ## README 教材标准
 
@@ -82,7 +90,7 @@ README 直接包含核心代码
 → 一段一段解释输入/地址/Shape/状态
 → 给手算和 CPU 实验
 → 标明当前已实现与未实现边界
-→ 给检验问题与完整参考答案
+→ 给练习题与完整参考答案
 ```
 
 ## 一键验证

@@ -5,7 +5,7 @@ import subprocess, sys, xml.etree.ElementTree as ET
 
 resources = Path(__file__).resolve().parents[1]
 errors=[]
-for number in range(29,45):
+for number in range(29,51):
     matches=list(resources.glob(f'lesson-{number}-*'))
     if len(matches)!=1:
         errors.append(f'lesson {number}: expected one directory, got {len(matches)}'); continue
@@ -27,6 +27,6 @@ for number in range(29,45):
     for svg in lesson.glob('*.svg'):
         try: ET.parse(svg)
         except Exception as exc: errors.append(f'{svg}: invalid SVG: {exc}')
-print('Lessons:',16); print('Errors:',len(errors))
+print('Lessons:',22); print('Errors:',len(errors))
 for error in errors: print('ERROR:',error)
 sys.exit(1 if errors else 0)
