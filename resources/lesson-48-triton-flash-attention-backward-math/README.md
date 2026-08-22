@@ -24,6 +24,10 @@ FlashAttention 训练路径最容易被误解的一点是：
 
 本课目标是让每一个反向变量都能从公式推出来，而不是把上游 Kernel 当成神秘模板。
 
+![FlashAttention 通过 O 和 LSE 重算概率并计算梯度](backward-lse-recompute.svg)
+
+> 图中从左到右展示“Forward 只保存 `O/LSE` → Backward 恢复局部 `P` 与行修正量 `D` → 计算 `dQ/dK/dV`”。所有公式均由 SVG 代码直接写入，避免生成式图片把转置、Shape 或梯度方向画错。
+
 ---
 
 ## 1. 前向公式与 Shape
