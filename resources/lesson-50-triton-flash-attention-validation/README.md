@@ -6,19 +6,9 @@
 
 > 事实边界：课程固定分析的是一份教学实现。它不包含 AIOS 所需的完整 Varlen、Paged KV、GQA/MQA、单 Token Decode 和请求调度能力，因此本课程不会把“能计算连续 Dense Attention”包装成“已经可以替换 FlashInfer”。
 
-```mermaid
-graph TD
-    A[固定源码与环境] --> B[写清 Shape / Layout Contract]
-    B --> C[Reference 正确性]
-    C --> D[Forward + dQ/dK/dV 对照]
-    D --> E[负向与边界测试]
-    E --> F[显存预算]
-    F --> G[首次成本与稳态 Benchmark 分离]
-    G --> H[Profiler 解释瓶颈]
-    H --> I{达到声明门禁?}
-    I -- 否 --> J[修正实现或收缩支持范围]
-    I -- 是 --> K[只在匹配的产品路径试验接入]
-```
+![从代码能跑到证据可信的六步验证链](validation-evidence-pipeline.svg)
+
+> 这张代码生成 SVG 将发布证据压缩为六个连续门槛：固定版本、显式合同、数值证据、负向测试、性能协议、产品边界。任何一环缺失，都只能说明“某个例子跑过”，不能说明 Kernel 已经可以被可信地发布或接入 AIOS。
 
 ## 1. “PASSED” 只说明一个默认 Shape 通过，不能代表 Kernel 已完成
 
