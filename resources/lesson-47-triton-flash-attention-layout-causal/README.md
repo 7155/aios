@@ -15,6 +15,10 @@ Lesson 46 已经解释“一个 Q Tile 内怎样流式更新 Online Softmax”�
 - 这份教学实现对 Stride、`SEQ_LEN`、`HEAD_DIM` 有哪些隐藏合同？
 - 24 个前向 Autotune 配置究竟在选择什么？
 
+![Triton Grid 所有权与 Causal Stage 分区](grid-pointer-causal-stage.svg)
+
+> 左半图把二维 Grid 映射为唯一的 `(batch, head, query_tile)` Program 身份；右半图将 Causal Score 平面拆成“整块合法、对角逐元素 Mask、整块未来跳过”三类区域。该 SVG 由代码生成，颜色只编码执行语义，不代替后文的地址与集合证明。
+
 ---
 
 ## 1. 前向 Grid：两个维度承载两种所有权
