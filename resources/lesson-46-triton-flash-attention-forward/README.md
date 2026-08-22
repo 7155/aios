@@ -18,6 +18,10 @@ l_i     [BQ]    以 m_i 为指数基准的分母
 O_block [BQ,D]  以 m_i 为指数基准的未归一化输出
 ```
 
+![Forward Kernel 固定 Q Tile 并流式扫描 K/V Tile](online-softmax-tile-flow.svg)
+
+> 图中的蓝色 Q Tile 在整个 Program 生命周期内复用，K/V Tile 逐块流入；右侧 `m_i / l_i / O_acc` 是跨 Tile 保持全局 Softmax 精确性的三个 FP32 状态。SVG 由代码生成，Shape 与正文变量一一对应。
+
 ---
 
 ## 1. 先看一轮循环的 Shape
