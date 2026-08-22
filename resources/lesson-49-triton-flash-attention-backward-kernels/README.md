@@ -8,18 +8,9 @@
 
 > 边界说明：这里是对固定教学实现的源码带读和优化设计，不代表优化补丁已经合入上游，也不代表已经替换 AIOS 当前的 FlashInfer Attention 后端。
 
-```mermaid
-graph TD
-    A[dO, O, Q, K, V, LSE] --> B[preprocess: D = rowsum dO * O]
-    B --> C[dQ kernel]
-    B --> D[dK/dV kernel]
-    C --> E[一个 Program 固定一个 Q tile]
-    E --> F[遍历允许的 K/V tiles]
-    F --> G[唯一写回这一块 dQ]
-    D --> H[一个 Program 固定一个 K/V tile]
-    H --> I[遍历允许的 Q tiles]
-    I --> J[唯一写回这一块 dK 和 dV]
-```
+![Backward Kernel 的唯一输出所有权与 Causal Tile Pruning](backward-ownership-pruning.svg)
+
+> 上半图说明为什么一个 Q Tile 独占 `dQ`、一个 KV Tile 独占 `dK/dV`，从而把归约留在 Program 内并避免最终 HBM Atomic；下半图区分“元素 Mask”与“整 Tile 跳过”。SVG 中的红、绿、灰区域对应后文调度集合实验。
 
 ## 1. 先看 Backward 的三次 Kernel Launch
 
