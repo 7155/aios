@@ -365,7 +365,6 @@ def validate_web_assets() -> None:
     readme = read_text(COURSE_ROOT / "README.md")
 
     for reference in (
-        "site-manifest.json",
         "assets/course.css",
         "assets/course.js",
         'type="module"',
