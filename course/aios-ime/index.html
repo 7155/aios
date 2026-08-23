@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AIOS-IME 双轨课程：实战上手、源码学习、机制图谱与可验证阶段产物。">
+  <meta name="color-scheme" content="light dark">
+  <title>AIOS-IME 双轨课程</title>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+  <link rel="stylesheet" href="assets/course.css">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+  <script type="module" src="assets/course.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#lesson-content">跳到正文</a>
+
+  <header class="topbar">
+    <button id="menu-button" class="icon-button menu-button" type="button" aria-label="打开课程目录" aria-expanded="false">
+      <span aria-hidden="true">☰</span>
+    </button>
+
+    <button id="search-button" class="icon-button search-button" type="button" aria-label="打开课程搜索" aria-expanded="false">
+      <span aria-hidden="true">⌕</span>
+    </button>
+
+    <a class="brand" href="?doc=README.md" data-doc-link="README.md" aria-label="返回课程首页">
+      <span class="brand-mark">AI</span>
+      <span>
+        <strong>AIOS-IME</strong>
+        <small>双轨课程 · v5.1</small>
+      </span>
+    </a>
+
+    <label class="search-box" for="course-search">
+      <span aria-hidden="true">⌕</span>
+      <input id="course-search" type="search" placeholder="搜索课程、概念或产物（按 / 聚焦）" autocomplete="off">
+    </label>
+
+    <div class="progress-summary" aria-live="polite">
+      <span id="progress-text">0 / 17</span>
+      <span class="progress-track" aria-hidden="true">
+        <span id="progress-bar" class="progress-bar"></span>
+      </span>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside id="course-sidebar" class="sidebar" aria-label="课程目录">
+      <div class="sidebar-intro">
+        <p>从需求出发，先形成可运行产物，再沿真实 Runtime Spine 打开黑盒。</p>
+      </div>
+
+      <div class="track-filters" role="group" aria-label="筛选课程轨道">
+        <button class="filter-button is-active" type="button" data-filter="all">全部</button>
+        <button class="filter-button" type="button" data-filter="practice">实战</button>
+        <button class="filter-button" type="button" data-filter="mechanism">源码</button>
+        <button class="filter-button" type="button" data-filter="reference">工具箱</button>
+      </div>
+
+      <nav id="course-navigation" class="course-navigation"></nav>
+
+      <div class="sidebar-footer">
+        <p>教材 Markdown 是事实源；网页只负责导航、渲染和进度。</p>
+      </div>
+    </aside>
+
+    <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+
+    <main class="main-area">
+      <div class="document-toolbar">
+        <div>
+          <p id="document-kicker" class="document-kicker">AIOS-IME</p>
+          <p id="document-meta" class="document-meta">加载课程中……</p>
+        </div>
+
+        <button id="complete-button" class="complete-button" type="button" hidden>
+          <span aria-hidden="true">○</span>
+          <span>标记完成</span>
+        </button>
+      </div>
+
+      <div class="reading-layout">
+        <article id="lesson-content" class="lesson-content" tabindex="-1" aria-live="polite">
+          <div class="loading-card">
+            <div class="loading-line loading-line-wide"></div>
+            <div class="loading-line"></div>
+            <div class="loading-line"></div>
+          </div>
+        </article>
+
+        <aside id="page-outline" class="page-outline" aria-label="本页目录">
+          <p class="outline-title">本页目录</p>
+          <nav id="outline-navigation"></nav>
+        </aside>
+      </div>
+
+      <nav id="document-pager" class="document-pager" aria-label="上一篇与下一篇"></nav>
+    </main>
+  </div>
+
+  <noscript>
+    <div class="noscript-card">
+      网页导航需要 JavaScript。课程正文仍可直接从 <code>README.md</code> 和 <code>tracks/</code> 阅读。
+    </div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,136 @@
+{
+  "source_revision": "9f53740753de36899aa7694cf7dcb5304e58ea54",
+  "entries": [
+    {
+      "lesson": "M01",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "class ImeCompletionEngine",
+        "def complete(",
+        "def _complete_locked("
+      ]
+    },
+    {
+      "lesson": "M02",
+      "path": "python/aios/models/config.py",
+      "symbols": [
+        "class ModelConfig"
+      ]
+    },
+    {
+      "lesson": "M02",
+      "path": "python/aios/models/minimind_ime.py",
+      "symbols": [
+        "class MiniMindIMEForCausalLM"
+      ]
+    },
+    {
+      "lesson": "M02",
+      "path": "scripts/export_minimind_ime.py",
+      "symbols": [
+        "def main("
+      ]
+    },
+    {
+      "lesson": "M03",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "def _prepare_prefix(",
+        "def _generate_branch_batch(",
+        "page_table"
+      ]
+    },
+    {
+      "lesson": "M04",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "active_local",
+        "stateless_uniforms"
+      ]
+    },
+    {
+      "lesson": "M04",
+      "path": "python/aios/engine/sample.py",
+      "symbols": [
+        "def sample_with_logprobs("
+      ]
+    },
+    {
+      "lesson": "M05",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "def candidate_pool_stats(",
+        "def adaptive_refill_attempts("
+      ]
+    },
+    {
+      "lesson": "M06",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "def token_longest_common_prefix(",
+        "def _prepare_prefix(",
+        "def _extend_prefill("
+      ]
+    },
+    {
+      "lesson": "M07",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "class CancellationToken",
+        "def new_generation(",
+        "reset_prefix_cache"
+      ]
+    },
+    {
+      "lesson": "M07",
+      "path": "tests/test_ime_gpu.py",
+      "symbols": [
+        "test_latest_generation_cancels_old_group_and_frees_pages"
+      ]
+    },
+    {
+      "lesson": "M08",
+      "path": "python/aios/ime.py",
+      "symbols": [
+        "def invalid_reasons(",
+        "def soft_penalty(",
+        "def candidate_key(",
+        "def select_top_candidates(",
+        "def score_candidates("
+      ]
+    },
+    {
+      "lesson": "M09",
+      "path": "python/aios/models/minimind_ime.py",
+      "symbols": [
+        "class BlockAttnResMixer",
+        "class MiniMindBlockAttnResModel"
+      ]
+    },
+    {
+      "lesson": "M10",
+      "path": "python/aios/kernel/attnres.py",
+      "symbols": [
+        "def _attnres_score_kernel(",
+        "def _attnres_value_kernel(",
+        "def triton_attnres_mix("
+      ]
+    },
+    {
+      "lesson": "M10",
+      "path": "scripts/check_attnres_runtime_equivalence.py",
+      "symbols": [
+        "def main("
+      ]
+    },
+    {
+      "lesson": "M11",
+      "path": "benchmark/bench_ime.py",
+      "symbols": [
+        "ImeCompletionEngine",
+        "ImeGenerationConfig",
+        "def main("
+      ]
+    }
+  ]
+}

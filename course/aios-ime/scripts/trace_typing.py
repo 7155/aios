@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -48,8 +49,10 @@ def row_from_result(step: int, result: Any) -> dict[str, Any]:
         "generation_id": result.generation_id,
         "prefix_tokens": result.prefix_tokens,
         "reused_prefix_tokens": result.reused_prefix_tokens,
+        "cancelled": result.cancelled,
         "sampling_attempts": result.sampling_attempts,
         "refill_rounds": result.refill_rounds,
+        "refill_stop_reason": result.refill_stop_reason,
         "latency_ms": result.latency_ms,
         "candidates": [candidate.text for candidate in result.candidates],
     }
@@ -68,12 +71,16 @@ def main() -> None:
         attention_workspace_size=args.attention_workspace_mib * 2**20,
     )
     engine = ImeCompletionEngine(llm)
-    config = ImeGenerationConfig(seed=args.seed)
+    base_config = ImeGenerationConfig(seed=args.seed)
 
     rows: list[dict[str, Any]] = []
     try:
         for step, prefix in enumerate(prefixes):
-            result = engine.complete(prefix, replace_seed(config, args.seed + step * 100_003))
+            config = replace(
+                base_config,
+                seed=args.seed + step * 100_003,
+            )
+            result = engine.complete(prefix, config)
             rows.append(row_from_result(step, result))
     finally:
         engine.reset_prefix_cache()
@@ -85,18 +92,13 @@ def main() -> None:
                     "This sequential trace demonstrates token-LCP reuse. "
                     "Run the GPU latest-wins test for concurrent cancellation evidence."
                 ),
+                "prefixes": prefixes,
                 "rows": rows,
             },
             ensure_ascii=False,
             indent=2,
         )
     )
-
-
-def replace_seed(config: ImeGenerationConfig, seed: int) -> ImeGenerationConfig:
-    values = dict(config.__dict__)
-    values["seed"] = seed
-    return ImeGenerationConfig(**values)
 
 
 if __name__ == "__main__":
