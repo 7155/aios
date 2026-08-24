@@ -4,6 +4,14 @@
 >
 > 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～44 课从零掌握 CUDA、Triton、FlashInfer、GPU 性能诊断与后续扩展。
 
+## 专题串讲：今天的问题统一收束
+
+| 专题 | 覆盖内容 | 推荐时机 |
+|---|---|---|
+| [从 KV Cache 到 Fused Layers：推理 Runtime 今日问题串讲](inference-runtime-question-chain/README.md) | SM/Warp、矩阵 Tiling、Prefill/Decode、Paged KV/Paged Attention、Static/Continuous/Varlen Batching、FlashInfer、FlashAttention Online Softmax、Fused Layers | 读完 Lesson 4～9 后，或在概念混在一起时回看 |
+
+这篇专题不是新增一条平行课程，而是把 Lesson 4～9 与 CUDA Lesson 32/37/39/41 串成同一套知识体系，并明确区分历史教学快照与当前 `feat/aios-ime` 源码。
+
 ## 第一篇：通用推理引擎基础
 
 | 课次 | 教材 | 建立的能力 |
