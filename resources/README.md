@@ -1,10 +1,25 @@
-# AIOS 课程导航：从通用推理引擎到本地输入法 Runtime
+# AIOS 课程导航
 
-> 当前高级 CUDA 教材扩展基线：`1d63bca4cf24885a1b15897003e3481db53d8ada`（`main`）
+> 当前源码固定点：`9f53740753de36899aa7694cf7dcb5304e58ea54`
 >
-> 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项设计，用 18～28 课沿真实调用链读懂核心 Runtime，最后用 29～50 课从零掌握 CUDA、Triton、FlashInfer、GPU 性能诊断与 FlashAttention 源码实战。
+> 推荐主入口：[AIOS-IME 双轨课程 v5](../course/aios-ime/README.md)
+>
+> 原 `lesson-0`～`lesson-50` 保留为线性教材与历史阶段；双轨课程按当前 AIOS-IME 主线持续维护。
 
-## 第一篇：通用推理引擎基础
+## 先选阅读方式
+
+| 目标 | 路线 |
+|---|---|
+| 尽快跑通、比较并验收 AIOS-IME | [实战上手轨](../course/aios-ime/tracks/practice/README.md) |
+| 沿一次按键调用链读核心源码 | [源码学习轨](../course/aios-ime/tracks/mechanism/README.md) |
+| 从通用推理引擎基础一路系统学习 | 继续阅读下方 0～50 线性课程 |
+| 查历史 AIOS-IME 专项解释 | Lesson 10～17；注意它们固定在较早 revision |
+
+## 线性课程总览
+
+学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项的历史主线，用 18～28 课沿通用 Runtime 调用链读源码，最后用 29～50 课学习 CUDA、Triton、FlashInfer 与 FlashAttention。
+
+### 第一篇：通用推理引擎基础
 
 | 课次 | 教材 | 建立的能力 |
 |---:|---|---|
@@ -19,7 +34,9 @@
 | 8 | [Flat Varlen Prefill](lesson-8-flat-varlen-prefill/README_CN.md) | 不 Padding 地并行变长 Prefix |
 | 9 | [Fused Layers](lesson-9-fused-layers/README_CN.md) | 小算子与显存往返为什么成为瓶颈 |
 
-## 第二篇：AIOS-IME 输入法专项
+### 第二篇：AIOS-IME 历史专项
+
+> 这组课保留早期 0.1B、固定 8 路与 8+4 补采样阶段的完整解释。学习当前默认 `8→最多24`、0.214B Block AttnRes 和五模型矩阵时，请进入 [双轨课程 v5](../course/aios-ime/README.md)。
 
 | 课次 | 教材 | 关键问题 |
 |---:|---|---|
@@ -32,7 +49,7 @@
 | 16 | [候选治理](lesson-16-candidate-governance/README.md) | Raw Branch 怎样变成 Top-3？ |
 | 17 | [性能与部署验收](lesson-17-evaluation-deployment/README.md) | 怎样建立可发布证据？ |
 
-## 第三篇：核心源码带读
+### 第三篇：核心源码带读
 
 > [打开独立导航与验证说明](code-reading/README.md)
 
@@ -50,11 +67,11 @@
 | 27 | [IME 主状态机](lesson-27-ime-engine-code-reading/README.md) | `ime.py` |
 | 28 | [权重加载与 Packing](lesson-28-weight-loading/README.md) | `weight.py` + `BaseOP` |
 
-## 第四篇：CUDA 与推理优化
+### 第四篇：CUDA 与推理优化
 
 > [打开 CUDA 长篇导航与验证说明](cuda-optimization/README.md)
 >
-> README 直接包含核心代码、逐行解释、Shape、地址、算术强度、资源生命周期与带答案的练习题，不要求先打开源码。
+> README 直接包含核心代码、逐行解释、Shape、地址、算术强度、资源生命周期与练习题，不要求先打开源码。
 >
 > Lesson 45～50 固定分析外部教学仓库 `hkproj/triton-flash-attention@296ee44c8a238cd2192d13e22e9082251f1c1289`。它们是源码实战课程，不表示该 Dense Attention Kernel 已接入或替换 AIOS 当前 FlashInfer Runtime。
 
@@ -96,8 +113,9 @@ README 直接包含核心代码
 ## 一键验证
 
 ```bash
+python course/aios-ime/scripts/validate_course.py
 python resources/code-reading/validate_code_reading.py
 python resources/cuda-optimization/validate_cuda_course.py
 ```
 
-CPU 实验验证机制，不冒充 CUDA 性能；真实 GPU 收益仍需项目测试、Profiler、Benchmark 与冻结评测。
+CPU 课程实验验证机制，不冒充 CUDA 性能；真实 GPU 收益仍需项目测试、Profiler、Benchmark 与冻结评测。

@@ -1,0 +1,25 @@
+bridges:
+  - practice: P01
+    mechanism: [M01]
+    learner_question: 一次 complete 到底经过哪些层？
+    disclosure_advance: used -> oriented/traced
+  - practice: P02
+    mechanism: [M03, M04, M05]
+    learner_question: 为什么显示三条却要生成更多路，而且每轮补多少不固定？
+    disclosure_advance: used -> opened
+  - practice: P03
+    mechanism: [M06, M07]
+    learner_question: 新按键怎样继承稳定 Cache，又怎样让旧结果失效？
+    disclosure_advance: used -> traced/opened
+  - practice: P04
+    mechanism: [M02, M09, M11]
+    learner_question: 模型更大、架构不同，怎样在同一合同下做决策？
+    disclosure_advance: used -> transferred
+  - practice: P05
+    mechanism: [M09, M10]
+    learner_question: 65 次深度路由慢在哪里，优化后怎样证明语义没有漂移？
+    disclosure_advance: traced -> opened/modified
+  - practice: P06
+    mechanism: [M08, M11]
+    learner_question: 哪些证据能阻止一个“更快但更坏”的版本发布？
+    disclosure_advance: used -> transferred

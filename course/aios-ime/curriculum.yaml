@@ -1,0 +1,193 @@
+course:
+  id: aios-ime-v5
+  title: AIOS-IME 双轨课程
+  version: "5.1"
+  language: zh-CN
+  source:
+    repository: 7155/aios
+    revision: 9f53740753de36899aa7694cf7dcb5304e58ea54
+    legacy_specialty_revision: bfc72896bbadab5c897672506d237c070900412e
+  learner:
+    prerequisites:
+      - Python 基础
+      - 了解 Transformer 自回归生成
+    not_required:
+      - 先读完整仓库
+      - 先掌握 CUDA Kernel
+  contracts:
+    question_heading: 练习题
+    readme_is_textbook: true
+    evidence_before_claim: true
+    practice_track_runnable_stages: true
+    mechanism_track_runtime_spine: true
+    progressive_disclosure: true
+    web_portal_manifest_driven: true
+    source_symbols_machine_checked: true
+    stage_artifacts_required: true
+    frozen_reports_never_presented_as_rerun: true
+
+delivery:
+  web:
+    entry: course/aios-ime/index.html
+    manifest: course/aios-ime/site-manifest.json
+    local_command: python -m http.server --directory course/aios-ime 8000
+    markdown_is_source_of_truth: true
+    browser_progress_is_advisory: true
+  support:
+    learning_paths: LEARNING_PATHS.md
+    visual_atlas: VISUAL_ATLAS.md
+    source_map: SOURCE_MAP.md
+    workbook: WORKBOOK.md
+    troubleshooting: TROUBLESHOOTING.md
+  validation:
+    command: python course/aios-ime/scripts/validate_course.py
+    source_symbols: source-symbols.json
+    workflow: .github/workflows/aios-ime-course.yml
+
+concepts:
+  - id: C01
+    name: IME workload contract
+    canonical_owner: M01
+  - id: C02
+    name: deployment model contract
+    canonical_owner: M02
+  - id: C03
+    name: CandidateGroup
+    canonical_owner: M03
+  - id: C04
+    name: ragged decode
+    canonical_owner: M04
+  - id: C05
+    name: request-local stateless sampling
+    canonical_owner: M04
+  - id: C06
+    name: adaptive refill
+    canonical_owner: M05
+  - id: C07
+    name: token-LCP prefix reuse
+    canonical_owner: M06
+  - id: C08
+    name: latest-wins lifecycle
+    canonical_owner: M07
+  - id: C09
+    name: candidate governance
+    canonical_owner: M08
+  - id: C10
+    name: Block AttnRes
+    canonical_owner: M09
+  - id: C11
+    name: Triton AttnRes hot path
+    canonical_owner: M10
+  - id: C12
+    name: evidence lanes
+    canonical_owner: M11
+
+tracks:
+  practice:
+    purpose: 从真实按键任务出发，形成可运行、可比较、可验收的工程路径。
+    completion_rule: 课程验收通过且阶段产物进入 WORKBOOK 约定目录。
+    lessons:
+      - id: P01
+        slug: first-top3
+        title: 十分钟跑出第一组 Top-3
+        concepts: [C01]
+        bridge_to: [M01]
+        artifact: 可复现 Top-3 JSON
+      - id: P02
+        slug: candidate-budget
+        title: 从固定三路到自适应候选池
+        concepts: [C03, C04, C05, C06]
+        bridge_to: [M03, M04, M05]
+        artifact: 3 / 8 / 8→24 候选预算对照
+      - id: P03
+        slug: continuous-typing
+        title: 连续输入、Prefix 复用与旧请求失效
+        concepts: [C07, C08]
+        bridge_to: [M06, M07]
+        artifact: generation 与 token-LCP Trace
+      - id: P04
+        slug: model-matrix
+        title: 用同一合同选择 0.06B、0.1B 与 0.214B
+        concepts: [C02, C10, C12]
+        bridge_to: [M02, M09, M11]
+        artifact: 三档模型决策记录
+      - id: P05
+        slug: profile-attnres
+        title: Profile 65 次 AttnRes Mixer
+        concepts: [C10, C11]
+        bridge_to: [M09, M10]
+        artifact: 四后端 Profile、端到端 A/B 与等价性记录
+      - id: P06
+        slug: release-gate
+        title: 建立可发布证据门禁
+        concepts: [C09, C12]
+        bridge_to: [M08, M11]
+        artifact: release / experimental / reject / blocked 决策表
+
+  mechanism:
+    purpose: 沿真实运行链解释输入、Shape、状态、资源所有权、数值边界和验证证据。
+    completion_rule: 能独立完成 hand calculation、失败路径与 canonical source trace。
+    lessons:
+      - id: M01
+        slug: runtime-map
+        title: 一次按键的 Runtime 地图
+        concepts: [C01]
+      - id: M02
+        slug: model-contract
+        title: 模型包、配置门禁与架构选择
+        concepts: [C02]
+      - id: M03
+        slug: candidate-group-kv
+        title: CandidateGroup 与物理 Prefix KV
+        concepts: [C03]
+      - id: M04
+        slug: ragged-rng
+        title: Ragged Decode 与独立随机流
+        concepts: [C04, C05]
+      - id: M05
+        slug: adaptive-refill
+        title: 过滤后有效产出驱动的自适应补采样
+        concepts: [C06]
+      - id: M06
+        slug: token-lcp
+        title: token-LCP Prefix KV 复用
+        concepts: [C07]
+      - id: M07
+        slug: latest-wins
+        title: latest-wins、锁与 Page 生命周期
+        concepts: [C08]
+      - id: M08
+        slug: candidate-governance
+        title: 从 Raw Branch 到稳定 Top-3
+        concepts: [C09]
+      - id: M09
+        slug: block-attnres
+        title: 0.214B Block AttnRes 主干
+        concepts: [C10]
+      - id: M10
+        slug: triton-attnres
+        title: 两段 Triton Kernel 与数值合同
+        concepts: [C11]
+      - id: M11
+        slug: evidence-lanes
+        title: 性能、结构、排序与语义证据分层
+        concepts: [C12]
+
+progressive_disclosure:
+  states: [unseen, oriented, used, traced, opened, modified, transferred]
+  rule: 同一概念再次出现时，必须推进披露层级或进入新的任务情境。
+  black_box_debt:
+    allowed: 早期课程可暂时隐藏内部实现。
+    closure: 对应机制课必须在课程结束前打开核心黑盒。
+
+evidence_policy:
+  lanes:
+    - source identity
+    - implementation invariants
+    - complete Top-3 performance
+    - structural candidate quality
+    - frozen ranking
+    - human semantic acceptance
+    - resource lifecycle
+  rule: 不允许用一个 Lane 的通过替代另一个 Lane。
+  stale_rule: 源码、模型、Tokenizer、设备、依赖、数据、配置或计时边界变化后，旧数字只能作为历史基线。

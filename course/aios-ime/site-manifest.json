@@ -1,0 +1,349 @@
+{
+  "course": {
+    "id": "aios-ime-v5",
+    "title": "AIOS-IME 双轨课程",
+    "version": "5.1",
+    "language": "zh-CN",
+    "source_revision": "9f53740753de36899aa7694cf7dcb5304e58ea54",
+    "home": "README.md",
+    "storage_key": "aios-ime-course-v5.1-progress"
+  },
+  "sections": [
+    {
+      "id": "start",
+      "title": "开始",
+      "track": "guide",
+      "docs": [
+        {
+          "id": "HOME",
+          "title": "课程首页",
+          "path": "README.md",
+          "kind": "guide",
+          "summary": "理解双轨结构、当前源码合同与三种阅读方式。"
+        },
+        {
+          "id": "PATHS",
+          "title": "学习路径与诊断",
+          "path": "LEARNING_PATHS.md",
+          "kind": "guide",
+          "summary": "按时间、目标和已有基础选择最短可用路线。"
+        },
+        {
+          "id": "P-TRACK",
+          "title": "实战上手轨总览",
+          "path": "tracks/practice/README.md",
+          "kind": "guide",
+          "summary": "从真实按键任务推进到可发布证据。"
+        },
+        {
+          "id": "M-TRACK",
+          "title": "源码学习轨总览",
+          "path": "tracks/mechanism/README.md",
+          "kind": "guide",
+          "summary": "沿一次按键的真实 Runtime Spine 打开黑盒。"
+        }
+      ]
+    },
+    {
+      "id": "practice",
+      "title": "实战上手",
+      "track": "practice",
+      "docs": [
+        {
+          "id": "P01",
+          "title": "跑出第一组 Top-3",
+          "path": "tracks/practice/lessons/P01-first-top3/README.md",
+          "kind": "lesson",
+          "duration": "30–45 分钟",
+          "concepts": [
+            "C01"
+          ],
+          "output": "可复现 Top-3 JSON",
+          "bridge": [
+            "M01"
+          ],
+          "summary": "建立最小运行路径和结果观测入口。"
+        },
+        {
+          "id": "P02",
+          "title": "从固定三路到自适应候选池",
+          "path": "tracks/practice/lessons/P02-candidate-budget/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C03",
+            "C04",
+            "C05",
+            "C06"
+          ],
+          "output": "3 / 8 / 8→24 对比记录",
+          "bridge": [
+            "M03",
+            "M04",
+            "M05"
+          ],
+          "summary": "用候选不足问题推动 CandidateGroup 与补采样。"
+        },
+        {
+          "id": "P03",
+          "title": "连续输入与旧请求失效",
+          "path": "tracks/practice/lessons/P03-continuous-typing/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C07",
+            "C08"
+          ],
+          "output": "连续 Prefix Trace",
+          "bridge": [
+            "M06",
+            "M07"
+          ],
+          "summary": "同时观察 Prefix 复用、generation 递增和资源回收。"
+        },
+        {
+          "id": "P04",
+          "title": "选择 0.06B、0.1B 与 0.214B",
+          "path": "tracks/practice/lessons/P04-model-matrix/README.md",
+          "kind": "lesson",
+          "duration": "45–75 分钟",
+          "concepts": [
+            "C02",
+            "C10",
+            "C12"
+          ],
+          "output": "模型档位决策记录",
+          "bridge": [
+            "M02",
+            "M09",
+            "M11"
+          ],
+          "summary": "在同一候选合同下比较速度、显存、完整率与违规。"
+        },
+        {
+          "id": "P05",
+          "title": "Profile 65 次 AttnRes Mixer",
+          "path": "tracks/practice/lessons/P05-profile-attnres/README.md",
+          "kind": "lesson",
+          "duration": "60–90 分钟",
+          "concepts": [
+            "C10",
+            "C11"
+          ],
+          "output": "四后端 Profile 与端到端 A/B",
+          "bridge": [
+            "M09",
+            "M10"
+          ],
+          "summary": "从 Profile 证据进入两段 Triton 热路径。"
+        },
+        {
+          "id": "P06",
+          "title": "建立可发布证据门禁",
+          "path": "tracks/practice/lessons/P06-release-gate/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C09",
+            "C12"
+          ],
+          "output": "release / experimental / reject 决策表",
+          "bridge": [
+            "M08",
+            "M11"
+          ],
+          "summary": "把性能、结构、排序、语义与生命周期拆成独立证据。"
+        }
+      ]
+    },
+    {
+      "id": "mechanism",
+      "title": "源码学习",
+      "track": "mechanism",
+      "docs": [
+        {
+          "id": "M01",
+          "title": "一次按键的 Runtime 地图",
+          "path": "tracks/mechanism/lessons/M01-runtime-map/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C01"
+          ],
+          "output": "Owner / Input / Output / Failure Runtime Map",
+          "summary": "建立 complete() 的完整生命周期与状态所有权。"
+        },
+        {
+          "id": "M02",
+          "title": "模型包、配置门禁与架构选择",
+          "path": "tracks/mechanism/lessons/M02-model-contract/README.md",
+          "kind": "lesson",
+          "duration": "45–75 分钟",
+          "concepts": [
+            "C02"
+          ],
+          "output": "部署模型合同检查表",
+          "summary": "理解 Exporter、Tokenizer、残差类型与 KV 成本。"
+        },
+        {
+          "id": "M03",
+          "title": "CandidateGroup 与物理 Prefix KV",
+          "path": "tracks/mechanism/lessons/M03-candidate-group-kv/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C03"
+          ],
+          "output": "Page Table 与 Page 预算手算",
+          "summary": "区分逻辑行、物理 Page 和跨轮 suffix 生命周期。"
+        },
+        {
+          "id": "M04",
+          "title": "Ragged Decode 与独立随机流",
+          "path": "tracks/mechanism/lessons/M04-ragged-rng/README.md",
+          "kind": "lesson",
+          "duration": "60–75 分钟",
+          "concepts": [
+            "C04",
+            "C05"
+          ],
+          "output": "Active Row / RNG / Page Identity Trace",
+          "summary": "解释 Row 压缩为何同时是性能与正确性问题。"
+        },
+        {
+          "id": "M05",
+          "title": "有效产出驱动的自适应补采样",
+          "path": "tracks/mechanism/lessons/M05-adaptive-refill/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C06"
+          ],
+          "output": "Refill 轮数与路数手算",
+          "summary": "从 unique-valid yield、deficit 与 deadline 规划恢复路径。"
+        },
+        {
+          "id": "M06",
+          "title": "token-LCP Prefix KV 复用",
+          "path": "tracks/mechanism/lessons/M06-token-lcp/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C07"
+          ],
+          "output": "四种 Prefix 状态转移表",
+          "summary": "理解字符 Prefix、Token Prefix、位置与末位 Logits 的边界。"
+        },
+        {
+          "id": "M07",
+          "title": "latest-wins、锁与 Page 生命周期",
+          "path": "tracks/mechanism/lessons/M07-latest-wins/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C08"
+          ],
+          "output": "取消时间线与资源终结证明",
+          "summary": "拆开交付资格、计算止损、锁与 Page 回收。"
+        },
+        {
+          "id": "M08",
+          "title": "从 Raw Branch 到稳定 Top-3",
+          "path": "tracks/mechanism/lessons/M08-candidate-governance/README.md",
+          "kind": "lesson",
+          "duration": "60–75 分钟",
+          "concepts": [
+            "C09"
+          ],
+          "output": "Filter / Dedup / MMR 手算",
+          "summary": "分离采样分布、原始模型分数和候选栏治理。"
+        },
+        {
+          "id": "M09",
+          "title": "0.214B Block AttnRes 主干",
+          "path": "tracks/mechanism/lessons/M09-block-attnres/README.md",
+          "kind": "lesson",
+          "duration": "60–90 分钟",
+          "concepts": [
+            "C10"
+          ],
+          "output": "Bank / Partial / Mixer Shape Ledger",
+          "summary": "理解 32 层、8 Block、65 次深度路由。"
+        },
+        {
+          "id": "M10",
+          "title": "两段 Triton Kernel 与数值合同",
+          "path": "tracks/mechanism/lessons/M10-triton-attnres/README.md",
+          "kind": "lesson",
+          "duration": "75–120 分钟",
+          "concepts": [
+            "C11"
+          ],
+          "output": "Kernel Grid、Scratch 与等价性门禁",
+          "summary": "沿 Score / Value 两段 Kernel 解释布局、精度和动态 Shape。"
+        },
+        {
+          "id": "M11",
+          "title": "性能、结构、排序与语义证据分层",
+          "path": "tracks/mechanism/lessons/M11-evidence-lanes/README.md",
+          "kind": "lesson",
+          "duration": "45–60 分钟",
+          "concepts": [
+            "C12"
+          ],
+          "output": "多 Lane 发布判定",
+          "summary": "防止用单一速度或完整率替代产品结论。"
+        }
+      ]
+    },
+    {
+      "id": "reference",
+      "title": "课程工具箱",
+      "track": "reference",
+      "docs": [
+        {
+          "id": "ATLAS",
+          "title": "机制图谱",
+          "path": "VISUAL_ATLAS.md",
+          "kind": "reference",
+          "summary": "十四张聚焦图串起 CandidateGroup、KV、RNG、Refill、AttnRes 与证据。"
+        },
+        {
+          "id": "SOURCE",
+          "title": "源码索引",
+          "path": "SOURCE_MAP.md",
+          "kind": "reference",
+          "summary": "按问题、状态 Owner 和符号定位真实源码。"
+        },
+        {
+          "id": "WORKBOOK",
+          "title": "阶段产物工作簿",
+          "path": "WORKBOOK.md",
+          "kind": "reference",
+          "summary": "保存每一阶段的命令、原始结果、判断和下一步。"
+        },
+        {
+          "id": "TROUBLE",
+          "title": "故障诊断手册",
+          "path": "TROUBLESHOOTING.md",
+          "kind": "reference",
+          "summary": "从症状进入字段、命令、机制课和最小修复。"
+        },
+        {
+          "id": "STATE",
+          "title": "课程状态",
+          "path": "COURSE_STATE.md",
+          "kind": "reference",
+          "summary": "记录源码固定点、冻结决策、黑盒债务与更新动作。"
+        },
+        {
+          "id": "CHANGELOG",
+          "title": "更新记录",
+          "path": "CHANGELOG.md",
+          "kind": "reference",
+          "summary": "查看课程结构和教学合同的版本变化。"
+        }
+      ]
+    }
+  ]
+}
