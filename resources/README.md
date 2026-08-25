@@ -15,6 +15,14 @@
 | 从通用推理引擎基础一路系统学习 | 继续阅读下方 0～50 线性课程 |
 | 查历史 AIOS-IME 专项解释 | Lesson 10～17；注意它们固定在较早 revision |
 
+## 专题串讲：推理 Runtime 问题统一收束
+
+| 专题 | 覆盖内容 | 推荐时机 |
+|---|---|---|
+| [从 KV Cache 到 Fused Layers：推理 Runtime 问题串讲](inference-runtime-question-chain/README.md) | SM/Warp、矩阵 Tiling、Prefill/Decode、Paged KV/Paged Attention、Static/Continuous/Varlen Batching、FlashInfer、FlashAttention Online Softmax、Fused Layers | 读完 Lesson 4～9 后，或在概念混在一起时回看 |
+
+这篇专题把 Lesson 4～9 与 CUDA Lesson 32/37/39/41 串成同一套知识体系，并明确区分历史教学快照与当前 `feat/aios-ime` 源码。
+
 ## 线性课程总览
 
 学习目标：先用 0～9 课建立推理引擎机制，再用 10～17 课理解输入法专项的历史主线，用 18～28 课沿通用 Runtime 调用链读源码，最后用 29～50 课学习 CUDA、Triton、FlashInfer 与 FlashAttention。
